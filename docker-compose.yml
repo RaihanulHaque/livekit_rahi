@@ -1,0 +1,90 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+    command: --dev --bind "0.0.0.0"
+    networks:
+      - agent_network
+
+  livekit-sip:
+    image: livekit/sip:latest
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "10000-10100:10000-10100/udp"  # narrowed range for local dev
+    volumes:
+      - ./sip.yaml:/etc/livekit/sip.yaml
+    command: --config /etc/livekit/sip.yaml
+    depends_on:
+      livekit:
+        condition: service_started
+    networks:
+      - agent_network
+
+  livekit_agent:
+    platform: linux/amd64
+    build:
+      context: ./livekit_agent
+    restart: unless-stopped
+    volumes:
+      - ./livekit_agent/src:/app/src
+    env_file:
+      - .env
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_HOST=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - LIVEKIT_AGENT_PORT=7880
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - ELEVEN_API_KEY=${ELEVEN_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+    depends_on:
+      livekit:
+        condition: service_started
+      # kokoro:
+      #   condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/ > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - agent_network
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+    depends_on:
+      livekit:
+        condition: service_started
+      livekit_agent:
+        condition: service_started
+    networks:
+      - agent_network
+
+  # kokoro:
+  #   build:
+  #     context: ./inference/kokoro
+  #   ports:
+  #     - "8880:8880"
+  #   networks:
+  #     - agent_network
+
+networks:
+  agent_network:
+    driver: bridge

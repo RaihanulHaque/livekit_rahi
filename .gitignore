@@ -1,0 +1,9 @@
+.DS_Store
+# Logslogs
+*.log
+demo/
+.vscode/
+.idea/
+*.sublime-workspace
+.claude
+.env
