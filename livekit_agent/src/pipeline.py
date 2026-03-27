@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from livekit.agents import AgentSession
-from livekit.plugins import deepgram, elevenlabs, openai, groq, langchain
+from livekit.plugins import deepgram, elevenlabs, openai, groq, langchain, google
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from langgraph_agent import graph_app
 import uuid
@@ -58,6 +58,11 @@ def build_llm_dynamic(config: dict):
         return groq.LLM(
             model=config.get("llm_model", "openai/gpt-oss-120b"),
             api_key=keys.get("groq", os.getenv("GROQ_API_KEY")),
+        )
+    elif provider == "google":
+        return google.LLM(
+            model=config.get("llm_model", "gemini-3.1-flash-lite-preview"),
+            api_key=keys.get("google", os.getenv("GEMINI_API_KEY")),
         )
     elif provider == "langchain":
         return build_llm_langchain(graph_app)

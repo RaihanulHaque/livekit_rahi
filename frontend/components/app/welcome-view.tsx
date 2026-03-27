@@ -75,6 +75,7 @@ export const WelcomeView = ({
               <SelectItem value="langchain">Langchain</SelectItem>
               <SelectItem value="openai">OpenAI</SelectItem>
               <SelectItem value="groq">Groq</SelectItem>
+              <SelectItem value="google">Gemini</SelectItem>
             </SelectContent>
           </Select>
 
