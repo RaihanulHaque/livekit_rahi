@@ -61,10 +61,12 @@ async def my_agent(ctx: JobContext):
     except json.JSONDecodeError:
         config = {}
 
+    system_prompt: str | None = config.get("system_prompt") or None
+
     session = build_session(vad=ctx.proc.userdata["vad"], config=config)
 
     await session.start(
-        agent=Assistant(),
+        agent=Assistant(instructions=system_prompt),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=_build_audio_input_options(),

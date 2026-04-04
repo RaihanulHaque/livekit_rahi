@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/livekit/button';
 import {
   Select,
@@ -25,6 +26,12 @@ function WelcomeImage() {
   );
 }
 
+const AGENT_IDS = [
+  { value: 'hvac', label: 'HVAC Support' },
+  { value: 'sales', label: 'Sales Assistant' },
+  { value: 'support', label: 'General Support' },
+];
+
 interface WelcomeViewProps {
   startButtonText: string;
   onStartCall: () => void;
@@ -34,6 +41,8 @@ interface WelcomeViewProps {
   setLlm: (v: string) => void;
   tts: string;
   setTts: (v: string) => void;
+  systemPrompt: string;
+  setSystemPrompt: (v: string) => void;
 }
 
 export const WelcomeView = ({
@@ -45,8 +54,25 @@ export const WelcomeView = ({
   setLlm,
   tts,
   setTts,
+  systemPrompt,
+  setSystemPrompt,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
+  const [agentId, setAgentId] = useState('hvac');
+  const [loading, setLoading] = useState(false);
+
+  const loadAgentPrompt = async (id: string) => {
+    setAgentId(id);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/system-prompt?agentId=${id}`);
+      const data = await res.json();
+      if (data.systemPrompt) setSystemPrompt(data.systemPrompt);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div ref={ref}>
       <section className="bg-background flex flex-col items-center justify-center text-center">
@@ -89,6 +115,37 @@ export const WelcomeView = ({
               <SelectItem value="openai">OpenAI</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Agent / system prompt section */}
+        <div className="mt-6 w-full max-w-lg">
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-foreground text-sm font-medium">Agent context</label>
+            <Select value={agentId} onValueChange={loadAgentPrompt}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Load agent profile" />
+              </SelectTrigger>
+              <SelectContent>
+                {AGENT_IDS.map((a) => (
+                  <SelectItem key={a.value} value={a.value}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <textarea
+            value={loading ? 'Loading...' : systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            disabled={loading}
+            placeholder="Enter a system prompt / agent context here, or select a profile above..."
+            className="border-border bg-background text-foreground placeholder:text-muted-foreground w-full resize-y rounded-md border px-3 py-2 font-mono text-xs leading-5 ring-1 focus:ring-current focus:outline-none disabled:opacity-50"
+            rows={6}
+          />
+          <p className="text-muted-foreground mt-1 text-left text-xs">
+            This context is injected into the agent at session start. You can edit it freely before
+            starting the call.
+          </p>
         </div>
 
         <Button variant="primary" size="lg" onClick={onStartCall} className="mt-6 w-64 font-mono">

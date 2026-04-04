@@ -42,6 +42,7 @@ export async function POST(req: Request) {
       stt: body?.stt || 'deepgram',
       llm: body?.llm || 'langchain',
       tts: body?.tts || 'elevenlabs',
+      system_prompt: body?.system_prompt || null,
     });
 
     const participantToken = await createParticipantToken(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TokenSource } from 'livekit-client';
 import {
   RoomAudioRenderer,
@@ -31,6 +31,17 @@ export function App({ appConfig }: AppProps) {
   const [stt, setStt] = useState('deepgram');
   const [llm, setLlm] = useState('langchain');
   const [tts, setTts] = useState('elevenlabs');
+  const [systemPrompt, setSystemPrompt] = useState('');
+
+  // Fetch default system prompt from demo API on mount
+  useEffect(() => {
+    fetch('/api/system-prompt?agentId=hvac')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.systemPrompt) setSystemPrompt(data.systemPrompt);
+      })
+      .catch(() => {});
+  }, []);
 
   const tokenSource = useMemo(() => {
     return TokenSource.custom(async () => {
@@ -54,6 +65,7 @@ export function App({ appConfig }: AppProps) {
           stt,
           llm,
           tts,
+          system_prompt: systemPrompt || null,
           room_config: appConfig.agentName
             ? { agents: [{ agent_name: appConfig.agentName }] }
             : undefined,
@@ -66,7 +78,7 @@ export function App({ appConfig }: AppProps) {
       }
       return await res.json();
     });
-  }, [appConfig, stt, llm, tts]);
+  }, [appConfig, stt, llm, tts, systemPrompt]);
 
   const session = useSession(tokenSource);
 
@@ -82,6 +94,8 @@ export function App({ appConfig }: AppProps) {
           setLlm={setLlm}
           tts={tts}
           setTts={setTts}
+          systemPrompt={systemPrompt}
+          setSystemPrompt={setSystemPrompt}
         />
       </main>
       <StartAudio label="Start Audio" />

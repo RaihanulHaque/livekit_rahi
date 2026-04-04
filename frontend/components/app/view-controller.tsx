@@ -35,6 +35,8 @@ interface ViewControllerProps {
   setLlm: (v: string) => void;
   tts: string;
   setTts: (v: string) => void;
+  systemPrompt: string;
+  setSystemPrompt: (v: string) => void;
 }
 
 export function ViewController({
@@ -45,6 +47,8 @@ export function ViewController({
   setLlm,
   tts,
   setTts,
+  systemPrompt,
+  setSystemPrompt,
 }: ViewControllerProps) {
   const { isConnected, start } = useSessionContext();
 
@@ -63,6 +67,8 @@ export function ViewController({
           setLlm={setLlm}
           tts={tts}
           setTts={setTts}
+          systemPrompt={systemPrompt}
+          setSystemPrompt={setSystemPrompt}
         />
       )}
       {/* Session view */}
