@@ -2,9 +2,13 @@ api_key: devkey
 api_secret: secret
 ws_url: ws://livekit:7880
 
+redis:
+  address: redis:6379
+
 sip_port: 5060
 rtp_port: 10000-10100
 
-external_ip: 100.74.43.2  # your Tailscale IPv4
+# external_ip: 89.116.34.144
+use_external_ip: true
 
 log_level: debug
