@@ -7,3 +7,4 @@ demo/
 *.sublime-workspace
 .claude
 .env
+livekit_sip_docs/

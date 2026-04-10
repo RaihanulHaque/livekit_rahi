@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from livekit.agents import AgentSession
+from livekit.agents import AgentSession, TurnHandlingOptions
 from livekit.plugins import deepgram, elevenlabs, openai, groq, langchain, google
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from langgraph_agent import graph_app
@@ -20,7 +20,8 @@ def build_session(vad, config: dict = None) -> AgentSession:
         stt=build_stt_dynamic(config),
         llm=build_llm_dynamic(config),
         tts=build_tts_dynamic(config),
-        turn_detection=MultilingualModel(),
+        # turn_detection=MultilingualModel(),
+        turn_handling=TurnHandlingOptions(turn_detector=MultilingualModel()),
         vad=vad,
         preemptive_generation=True,
     )

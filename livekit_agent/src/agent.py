@@ -17,7 +17,7 @@ from pipeline import build_session
 logger = logging.getLogger("agent")
 
 
-server = AgentServer()
+server = AgentServer(job_memory_warn_mb=1024)
 
 
 def prewarm(proc: JobProcess):
