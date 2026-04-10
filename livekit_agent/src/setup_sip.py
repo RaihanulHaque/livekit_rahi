@@ -6,7 +6,8 @@ The dispatch rule sets room metadata with the agent's config so the
 Python agent knows which system prompt and providers to use.
 
 Usage:
-    docker compose exec livekit_agent python src/setup_sip.py
+    docker compose exec livekit_agent python src/setup_sip.py          # create (skip if exists)
+    docker compose exec livekit_agent python src/setup_sip.py --reset  # delete all and recreate
 
 To add a new agent, add an entry to AGENT_PHONE_MAP below and re-run.
 Existing trunks/rules are listed first so you can avoid duplicates.
@@ -15,6 +16,7 @@ Existing trunks/rules are listed first so you can avoid duplicates.
 import asyncio
 import json
 import os
+import sys
 
 from livekit import api
 
@@ -32,7 +34,7 @@ LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET", "secret")
 AGENT_PHONE_MAP = [
     {
         "name": "HVAC Support Agent",
-        "phone": "+12707768622",
+        "phone": "12707768622",
         "metadata": {
             "system_prompt": (
                 "You are a professional HVAC support agent. "
@@ -40,7 +42,7 @@ AGENT_PHONE_MAP = [
                 "Be concise and speak naturally for voice conversation."
             ),
             "stt": "deepgram",
-            "llm": "openai",
+            "llm": "google",
             "tts": "elevenlabs",
         },
     },
@@ -59,6 +61,8 @@ AGENT_PHONE_MAP = [
 
 
 async def main():
+    reset = "--reset" in sys.argv
+
     lkapi = api.LiveKitAPI(
         url=LIVEKIT_URL,
         api_key=LIVEKIT_API_KEY,
@@ -85,6 +89,21 @@ async def main():
     if not existing_rules.items:
         print("  (none)")
 
+    # ── Reset: delete all existing trunks and rules ──────────────────────
+    if reset:
+        print("\n-- Reset requested: deleting all existing resources --")
+        for r in existing_rules.items:
+            await lkapi.sip.delete_sip_dispatch_rule(
+                api.DeleteSIPDispatchRuleRequest(sip_dispatch_rule_id=r.sip_dispatch_rule_id)
+            )
+            print(f"  Deleted dispatch rule: {r.sip_dispatch_rule_id}")
+        for t in existing_trunks.items:
+            await lkapi.sip.delete_sip_trunk(
+                api.DeleteSIPTrunkRequest(sip_trunk_id=t.sip_trunk_id)
+            )
+            print(f"  Deleted trunk: {t.sip_trunk_id}")
+        existing_trunks.items.clear()
+
     # ── Create trunk + dispatch rule for each agent ──────────────────────
     for agent_cfg in AGENT_PHONE_MAP:
         phone = agent_cfg["phone"]
@@ -100,7 +119,7 @@ async def main():
         ]
         if existing:
             print(f"  Trunk already exists for {phone}: {existing[0].sip_trunk_id}")
-            print(f"  Skipping (delete it first if you want to recreate)")
+            print(f"  Skipping (run with --reset to recreate)")
             continue
 
         # Create inbound trunk

@@ -37,6 +37,7 @@ interface ViewControllerProps {
   setTts: (v: string) => void;
   systemPrompt: string;
   setSystemPrompt: (v: string) => void;
+  onBeforeStart?: () => void;
 }
 
 export function ViewController({
@@ -49,8 +50,13 @@ export function ViewController({
   setTts,
   systemPrompt,
   setSystemPrompt,
+  onBeforeStart,
 }: ViewControllerProps) {
   const { isConnected, start } = useSessionContext();
+  const handleStart = () => {
+    onBeforeStart?.();
+    start();
+  };
 
   return (
     <AnimatePresence mode="wait">
@@ -60,7 +66,7 @@ export function ViewController({
           key="welcome"
           {...VIEW_MOTION_PROPS}
           startButtonText={appConfig.startButtonText}
-          onStartCall={start}
+          onStartCall={handleStart}
           stt={stt}
           setStt={setStt}
           llm={llm}

@@ -6,7 +6,7 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
-    command: --dev --bind "0.0.0.0" --redis-host redis:6379 # --node-ip 89.116.34.144
+    command: --dev --bind "0.0.0.0" --redis-host redis:6379 --node-ip 89.116.34.144
     depends_on:
       redis:
         condition: service_started
@@ -15,18 +15,19 @@ services:
 
   livekit-sip:
     image: livekit/sip:latest
-    ports:
-      - "5060:5060/udp"
-      - "5060:5060/tcp"
-      - "10000-10100:10000-10100/udp"  # narrowed range for local dev
+    # ports:
+    #   - "5060:5060/udp"
+    #   - "5060:5060/tcp"
+    #   - "10000-10100:10000-10100/udp"  # narrowed range for local dev
+    network_mode: "host"  # Use host networking for SIP to avoid port conflicts
     volumes:
       - ./sip.yaml:/etc/livekit/sip.yaml
     command: --config /etc/livekit/sip.yaml
     depends_on:
       livekit:
         condition: service_started
-    networks:
-      - agent_network
+    # networks:
+    #   - agent_network
 
   redis:
     image: redis:7-alpine

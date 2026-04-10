@@ -32,6 +32,7 @@ export function App({ appConfig }: AppProps) {
   const [llm, setLlm] = useState('langchain');
   const [tts, setTts] = useState('elevenlabs');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [callKey, setCallKey] = useState(0);
 
   // Fetch default system prompt from demo API on mount
   useEffect(() => {
