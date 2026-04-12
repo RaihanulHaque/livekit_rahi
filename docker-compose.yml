@@ -110,6 +110,8 @@ services:
     ports:
       - "3033:3000"
     environment:
+      - NODE_ENV=production
+      - SIP_API_BASE=http://sip_api:8089
       - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
       - LIVEKIT_URL=ws://livekit:7880
       - LIVEKIT_API_KEY=devkey

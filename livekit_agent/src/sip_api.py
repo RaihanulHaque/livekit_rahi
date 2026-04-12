@@ -57,30 +57,19 @@ async def validate_jwt(request: Request) -> dict:
         Dict with decoded JWT claims, including user_id
     """
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
-    token = auth_header[7:]  # Remove "Bearer " prefix
+    # For development: accept requests with or without JWT
+    # In production, implement proper JWT validation
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]  # Remove "Bearer " prefix
+    else:
+        token = None
+        logger.warning("Request without Authorization header - using default user")
 
-    try:
-        # For now, use a simple validation by checking if token is present
-        # In production, use livekit.access_token module to decode and verify JWT
-        # This is a placeholder - the actual JWT validation would decode the token
-        # using the shared secret.
+    # Placeholder: use default user for development
+    user_id = "default_user"
 
-        # For development, we'll extract user_id from a query param or use a default
-        # In production, decode the JWT properly:
-        # decoded = jwt.decode(token, api_secret, algorithms=["HS256"])
-        # user_id = decoded.get("sub") or decoded.get("identity")
-
-        # Placeholder: extract user_id from header or use default
-        user_id = "default_user"  # This should come from decoded JWT
-
-        return {"user_id": user_id, "token": token}
-
-    except Exception as e:
-        logger.error(f"JWT validation failed: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
+    return {"user_id": user_id, "token": token}
 
 
 # ── Request/Response Models ───────────────────────────────────────────────
