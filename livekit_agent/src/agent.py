@@ -1,4 +1,5 @@
 import logging
+import threading
 from livekit import rtc
 from livekit.agents import (
     AgentServer,
@@ -20,8 +21,35 @@ logger = logging.getLogger("agent")
 server = AgentServer(job_memory_warn_mb=1024)
 
 
+def _start_sip_api_server():
+    """Start FastAPI server for SIP management in a background thread."""
+    try:
+        import uvicorn
+        from fastapi import FastAPI
+
+        from sip_api import router
+
+        app = FastAPI()
+        app.include_router(router)
+
+        logger.info("Starting SIP API server on port 8089...")
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=8089,
+            log_level="info",
+        )
+    except Exception as e:
+        logger.error(f"Failed to start SIP API server: {e}")
+
+
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
+
+    # Start SIP API server in background thread
+    api_thread = threading.Thread(target=_start_sip_api_server, daemon=True)
+    api_thread.start()
+    logger.info("SIP API server thread started")
 
 
 server.setup_fnc = prewarm
