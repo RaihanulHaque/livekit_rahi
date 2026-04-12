@@ -1,13 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useSessionContext } from '@livekit/components-react';
-import { useEffect, useState } from 'react';
+import { Gear } from '@phosphor-icons/react';
 import type { AppConfig } from '@/app-config';
 import { SessionView } from '@/components/app/session-view';
-import { WelcomeView } from '@/components/app/welcome-view';
 import { SipManagementView } from '@/components/app/sip-management-view';
-import { Gear } from '@phosphor-icons/react';
+import { WelcomeView } from '@/components/app/welcome-view';
 
 const MotionWelcomeView = motion.create(WelcomeView);
 const MotionSessionView = motion.create(SessionView);
@@ -96,20 +96,16 @@ export function ViewController({
     setViewMode('session');
   };
 
-  const handleSessionEnd = () => {
-    setViewMode('welcome');
-  };
-
   return (
     <div className="relative">
       {/* SIP Management Tab Button */}
       {!isConnected && viewMode !== 'sip' && (
         <button
           onClick={() => setViewMode('sip')}
-          className="absolute top-4 right-4 z-50 p-2 hover:bg-muted rounded-lg transition-colors"
+          className="hover:bg-muted absolute top-4 right-4 z-50 rounded-lg p-2 transition-colors"
           title="SIP Phone Management"
         >
-          <Gear className="w-5 h-5 text-muted-foreground hover:text-foreground" />
+          <Gear className="text-muted-foreground hover:text-foreground h-5 w-5" />
         </button>
       )}
 
@@ -117,7 +113,7 @@ export function ViewController({
       {viewMode === 'sip' && (
         <button
           onClick={() => setViewMode('welcome')}
-          className="absolute top-4 right-4 z-50 px-3 py-1 text-sm bg-muted hover:bg-muted-foreground/20 rounded-lg transition-colors"
+          className="bg-muted hover:bg-muted-foreground/20 absolute top-4 right-4 z-50 rounded-lg px-3 py-1 text-sm transition-colors"
         >
           Back
         </button>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Phone, Plus, Trash, WarningCircle } from '@phosphor-icons/react';
 import { Button } from '@/components/livekit/button';
 import {
   Select,
@@ -9,12 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/livekit/select';
-import {
-  WarningCircle,
-  Trash,
-  Plus,
-  Phone,
-} from '@phosphor-icons/react';
 
 interface SIPTrunk {
   local_number: string;
@@ -22,14 +17,6 @@ interface SIPTrunk {
   trunk_id: string;
   status: string;
   created_at: number;
-}
-
-interface SIPTrunkDetail extends SIPTrunk {
-  dispatch_rule_id: string;
-  system_prompt: string;
-  stt: string;
-  llm: string;
-  tts: string;
 }
 
 export const SipManagementView = ({
@@ -51,7 +38,7 @@ export const SipManagementView = ({
     tts: 'elevenlabs',
   });
 
-  const fetchTrunks = async () => {
+  const fetchTrunks = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -69,11 +56,11 @@ export const SipManagementView = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [jwtToken]);
 
   useEffect(() => {
     fetchTrunks();
-  }, []);
+  }, [fetchTrunks]);
 
   const handleAddTrunk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,13 +129,13 @@ export const SipManagementView = ({
   };
 
   return (
-    <div ref={ref} className="w-full max-w-2xl mx-auto p-6" {...props}>
-      <div className="bg-background rounded-lg border border-border p-6">
+    <div ref={ref} className="mx-auto w-full max-w-2xl p-6" {...props}>
+      <div className="bg-background border-border rounded-lg border p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Phone className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold text-foreground">SIP Phone Numbers</h2>
+            <Phone className="text-primary h-6 w-6" />
+            <h2 className="text-foreground text-2xl font-bold">SIP Phone Numbers</h2>
           </div>
           {!showAddForm && (
             <Button
@@ -156,7 +143,7 @@ export const SipManagementView = ({
               disabled={loading}
               className="flex items-center gap-2"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4" />
               Add Number
             </Button>
           )}
@@ -164,57 +151,55 @@ export const SipManagementView = ({
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <WarningCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <WarningCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
             <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
 
         {/* Add Form */}
         {showAddForm && (
-          <form onSubmit={handleAddTrunk} className="mb-6 p-4 bg-muted rounded-lg border border-border">
-            <h3 className="font-semibold text-foreground mb-4">Add New Phone Number</h3>
+          <form
+            onSubmit={handleAddTrunk}
+            className="bg-muted border-border mb-6 rounded-lg border p-4"
+          >
+            <h3 className="text-foreground mb-4 font-semibold">Add New Phone Number</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="text-foreground mb-2 block text-sm font-medium">
                   Local Phone Number
                 </label>
                 <input
                   type="text"
                   placeholder="e.g., 09643234042"
                   value={formData.local_number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, local_number: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  onChange={(e) => setFormData({ ...formData, local_number: e.target.value })}
+                  className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="text-foreground mb-2 block text-sm font-medium">
                   System Prompt
                 </label>
                 <textarea
                   placeholder="You are a professional support agent..."
                   value={formData.system_prompt}
-                  onChange={(e) =>
-                    setFormData({ ...formData, system_prompt: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary h-24"
+                  onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
+                  className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary h-24 w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    STT
-                  </label>
-                  <Select value={formData.stt} onValueChange={(v) =>
-                    setFormData({ ...formData, stt: v })
-                  }>
+                  <label className="text-foreground mb-2 block text-sm font-medium">STT</label>
+                  <Select
+                    value={formData.stt}
+                    onValueChange={(v) => setFormData({ ...formData, stt: v })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -226,12 +211,11 @@ export const SipManagementView = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    LLM
-                  </label>
-                  <Select value={formData.llm} onValueChange={(v) =>
-                    setFormData({ ...formData, llm: v })
-                  }>
+                  <label className="text-foreground mb-2 block text-sm font-medium">LLM</label>
+                  <Select
+                    value={formData.llm}
+                    onValueChange={(v) => setFormData({ ...formData, llm: v })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -245,12 +229,11 @@ export const SipManagementView = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    TTS
-                  </label>
-                  <Select value={formData.tts} onValueChange={(v) =>
-                    setFormData({ ...formData, tts: v })
-                  }>
+                  <label className="text-foreground mb-2 block text-sm font-medium">TTS</label>
+                  <Select
+                    value={formData.tts}
+                    onValueChange={(v) => setFormData({ ...formData, tts: v })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -263,7 +246,7 @@ export const SipManagementView = ({
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -283,43 +266,35 @@ export const SipManagementView = ({
         {/* Trunks List */}
         <div className="space-y-3">
           {trunks.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No phone numbers added yet
-            </p>
+            <p className="text-muted-foreground py-8 text-center">No phone numbers added yet</p>
           ) : (
             trunks.map((trunk) => (
               <div
                 key={trunk.local_number}
-                className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/30"
+                className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-4"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-4 mb-2">
+                  <div className="mb-2 flex items-center gap-4">
                     <div>
-                      <p className="font-semibold text-foreground">
-                        {trunk.local_number}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        SIP: {trunk.sip_number}
-                      </p>
+                      <p className="text-foreground font-semibold">{trunk.local_number}</p>
+                      <p className="text-muted-foreground text-sm">SIP: {trunk.sip_number}</p>
                     </div>
                     <div className="text-sm">
-                      <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded">
+                      <span className="inline-block rounded bg-green-100 px-2 py-1 text-green-800">
                         {trunk.status}
                       </span>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    ID: {trunk.trunk_id}
-                  </p>
+                  <p className="text-muted-foreground text-xs">ID: {trunk.trunk_id}</p>
                 </div>
 
                 <button
                   onClick={() => handleDeleteTrunk(trunk.local_number)}
                   disabled={loading}
-                  className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                  className="rounded-lg p-2 transition-colors hover:bg-red-50"
                   title="Delete phone number"
                 >
-                  <Trash className="w-5 h-5 text-red-600" />
+                  <Trash className="h-5 w-5 text-red-600" />
                 </button>
               </div>
             ))
@@ -329,7 +304,7 @@ export const SipManagementView = ({
         {/* Loading State */}
         {loading && (
           <div className="mt-4 text-center">
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <p className="text-muted-foreground text-sm">Loading...</p>
           </div>
         )}
       </div>

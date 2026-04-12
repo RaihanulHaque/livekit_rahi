@@ -7,11 +7,11 @@
  * - GET/PATCH /api/sip/09643234042   → /sip/trunks/09643234042
  * - DELETE    /api/sip/09643234042   → /sip/trunks/09643234042
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const SIP_API_BASE =
-  process.env.SIP_API_BASE || (process.env.NODE_ENV === 'production' ? 'http://livekit_agent:8089' : 'http://localhost:8089');
+  process.env.SIP_API_BASE ||
+  (process.env.NODE_ENV === 'production' ? 'http://livekit_agent:8089' : 'http://localhost:8089');
 
 function getSIPPath(pathname: string): string {
   // Extract path after /api/sip
@@ -70,7 +70,10 @@ async function handleRequest(request: NextRequest, method: string) {
   } catch (error) {
     console.error('[SIP API] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to reach SIP API', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Failed to reach SIP API',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 503 }
     );
   }
