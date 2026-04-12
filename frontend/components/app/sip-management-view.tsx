@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from '@/components/livekit/select';
 
-interface SIPTrunk {
+interface SIPAgent {
+  agent_id: string;
   local_number: string;
   sip_number: string;
   trunk_id: string;
@@ -24,21 +25,23 @@ export const SipManagementView = ({
   jwtToken,
   ...props
 }: React.ComponentProps<'div'> & { jwtToken?: string }) => {
-  const [trunks, setTrunks] = useState<SIPTrunk[]>([]);
+  const [agents, setAgents] = useState<SIPAgent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
+    agent_id: '',
     local_number: '',
+    sip_number: '',
     system_prompt: '',
     stt: 'deepgram',
     llm: 'openai',
     tts: 'elevenlabs',
   });
 
-  const fetchTrunks = useCallback(async () => {
+  const fetchAgents = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -47,10 +50,10 @@ export const SipManagementView = ({
         headers['Authorization'] = `Bearer ${jwtToken}`;
       }
 
-      const res = await fetch('/api/sip', { headers });
-      if (!res.ok) throw new Error('Failed to fetch trunks');
+      const res = await fetch('/api/sip/agents', { headers });
+      if (!res.ok) throw new Error('Failed to fetch agents');
       const data = await res.json();
-      setTrunks(data);
+      setAgents(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -59,10 +62,10 @@ export const SipManagementView = ({
   }, [jwtToken]);
 
   useEffect(() => {
-    fetchTrunks();
-  }, [fetchTrunks]);
+    fetchAgents();
+  }, [fetchAgents]);
 
-  const handleAddTrunk = async (e: React.FormEvent) => {
+  const handleAddAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -75,7 +78,7 @@ export const SipManagementView = ({
         headers['Authorization'] = `Bearer ${jwtToken}`;
       }
 
-      const res = await fetch('/api/sip', {
+      const res = await fetch('/api/sip/agents', {
         method: 'POST',
         headers,
         body: JSON.stringify(formData),
@@ -87,23 +90,25 @@ export const SipManagementView = ({
       }
 
       setFormData({
+        agent_id: '',
         local_number: '',
+        sip_number: '',
         system_prompt: '',
         stt: 'deepgram',
         llm: 'openai',
         tts: 'elevenlabs',
       });
       setShowAddForm(false);
-      await fetchTrunks();
+      await fetchAgents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add trunk');
+      setError(err instanceof Error ? err.message : 'Failed to add agent');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteTrunk = async (localNumber: string) => {
-    if (!confirm(`Delete phone number ${localNumber}?`)) return;
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!confirm(`Delete agent ${agentId}?`)) return;
 
     setLoading(true);
     setError('');
@@ -114,15 +119,15 @@ export const SipManagementView = ({
         headers['Authorization'] = `Bearer ${jwtToken}`;
       }
 
-      const res = await fetch(`/api/sip/${localNumber}`, {
+      const res = await fetch(`/api/sip/agents/${agentId}`, {
         method: 'DELETE',
         headers,
       });
 
-      if (!res.ok) throw new Error('Failed to delete trunk');
-      await fetchTrunks();
+      if (!res.ok) throw new Error('Failed to delete agent');
+      await fetchAgents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete trunk');
+      setError(err instanceof Error ? err.message : 'Failed to delete agent');
     } finally {
       setLoading(false);
     }
@@ -160,12 +165,24 @@ export const SipManagementView = ({
         {/* Add Form */}
         {showAddForm && (
           <form
-            onSubmit={handleAddTrunk}
+            onSubmit={handleAddAgent}
             className="bg-muted border-border mb-6 rounded-lg border p-4"
           >
-            <h3 className="text-foreground mb-4 font-semibold">Add New Phone Number</h3>
+            <h3 className="text-foreground mb-4 font-semibold">Add New Agent</h3>
 
             <div className="space-y-4">
+              <div>
+                <label className="text-foreground mb-2 block text-sm font-medium">Agent ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g., hvac_support"
+                  value={formData.agent_id}
+                  onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                  className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
+                  required
+                />
+              </div>
+
               <div>
                 <label className="text-foreground mb-2 block text-sm font-medium">
                   Local Phone Number
@@ -175,6 +192,18 @@ export const SipManagementView = ({
                   placeholder="e.g., 09643234042"
                   value={formData.local_number}
                   onChange={(e) => setFormData({ ...formData, local_number: e.target.value })}
+                  className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-foreground mb-2 block text-sm font-medium">SIP Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 12707768622"
+                  value={formData.sip_number}
+                  onChange={(e) => setFormData({ ...formData, sip_number: e.target.value })}
                   className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                 />
@@ -256,43 +285,45 @@ export const SipManagementView = ({
                   Cancel
                 </Button>
                 <Button type="submit" disabled={loading}>
-                  {loading ? 'Adding...' : 'Add Phone Number'}
+                  {loading ? 'Adding...' : 'Add Agent'}
                 </Button>
               </div>
             </div>
           </form>
         )}
 
-        {/* Trunks List */}
+        {/* Agents List */}
         <div className="space-y-3">
-          {trunks.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center">No phone numbers added yet</p>
+          {agents.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center">No agents added yet</p>
           ) : (
-            trunks.map((trunk) => (
+            agents.map((agent) => (
               <div
-                key={trunk.local_number}
+                key={agent.agent_id}
                 className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-4"
               >
                 <div className="flex-1">
                   <div className="mb-2 flex items-center gap-4">
                     <div>
-                      <p className="text-foreground font-semibold">{trunk.local_number}</p>
-                      <p className="text-muted-foreground text-sm">SIP: {trunk.sip_number}</p>
+                      <p className="text-foreground font-semibold">{agent.agent_id}</p>
+                      <p className="text-muted-foreground text-sm">
+                        Local: {agent.local_number} → SIP: {agent.sip_number}
+                      </p>
                     </div>
                     <div className="text-sm">
                       <span className="inline-block rounded bg-green-100 px-2 py-1 text-green-800">
-                        {trunk.status}
+                        {agent.status}
                       </span>
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-xs">ID: {trunk.trunk_id}</p>
+                  <p className="text-muted-foreground text-xs">Trunk ID: {agent.trunk_id}</p>
                 </div>
 
                 <button
-                  onClick={() => handleDeleteTrunk(trunk.local_number)}
+                  onClick={() => handleDeleteAgent(agent.agent_id)}
                   disabled={loading}
                   className="rounded-lg p-2 transition-colors hover:bg-red-50"
-                  title="Delete phone number"
+                  title="Delete agent"
                 >
                   <Trash className="h-5 w-5 text-red-600" />
                 </button>

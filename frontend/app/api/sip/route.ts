@@ -1,11 +1,11 @@
 /**
- * Proxy API for SIP trunk management
- * Forwards requests to livekit_agent:8089/sip/
+ * Proxy API for SIP agent management
+ * Forwards requests to livekit_agent:8089/sip/agents
  *
  * Handles all SIP API paths:
- * - GET/POST  /api/sip               → /sip/trunks
- * - GET/PATCH /api/sip/09643234042   → /sip/trunks/09643234042
- * - DELETE    /api/sip/09643234042   → /sip/trunks/09643234042
+ * - GET/POST  /api/sip/agents        → /sip/agents
+ * - GET/PATCH /api/sip/agents/hvac   → /sip/agents/hvac
+ * - DELETE    /api/sip/agents/hvac   → /sip/agents/hvac
  */
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -14,15 +14,17 @@ const SIP_API_BASE =
   (process.env.NODE_ENV === 'production' ? 'http://livekit_agent:8089' : 'http://localhost:8089');
 
 function getSIPPath(pathname: string): string {
-  // Extract path after /api/sip
+  // Extract path after /api/sip/
   const match = pathname.match(/^\/api\/sip(.*)$/);
-  if (!match) return '/trunks';
+  if (!match) return '/agents';
 
   const pathPart = match[1];
-  if (!pathPart || pathPart === '') return '/trunks';
+  if (!pathPart || pathPart === '') return '/agents';
 
-  // Add /trunks prefix if not already there
-  return pathPart.startsWith('/trunks') ? pathPart : `/trunks${pathPart}`;
+  // Paths should already include /agents or agent_id
+  // /api/sip/agents → /agents
+  // /api/sip/agents/hvac → /agents/hvac
+  return pathPart;
 }
 
 async function handleRequest(request: NextRequest, method: string) {

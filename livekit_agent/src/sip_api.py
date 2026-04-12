@@ -1,15 +1,16 @@
 """
-FastAPI endpoints for SIP trunk management.
+FastAPI endpoints for SIP agent management.
 
-Provides REST API to dynamically add, delete, and manage SIP phone numbers.
+Provides REST API to dynamically add, delete, and manage SIP-enabled agents.
+Each agent gets a dedicated local/SIP number pair. Numbers are exclusive to agents.
 All endpoints require LiveKit JWT authentication.
 
 Endpoints:
-  POST   /sip/trunks              - Register new phone number
-  GET    /sip/trunks              - List all phone numbers for user
-  GET    /sip/trunks/{local_number} - Get specific phone number
-  PATCH  /sip/trunks/{local_number} - Update system prompt / providers
-  DELETE /sip/trunks/{local_number} - Delete phone number
+  POST   /sip/agents              - Register new agent with number
+  GET    /sip/agents              - List all agents for user
+  GET    /sip/agents/{agent_id}   - Get specific agent config
+  PATCH  /sip/agents/{agent_id}   - Update agent config
+  DELETE /sip/agents/{agent_id}   - Delete agent and free up number
 """
 
 import json
@@ -28,7 +29,7 @@ except ImportError:
 logger = logging.getLogger("sip_api")
 
 # ── Router ────────────────────────────────────────────────────────────────
-router = APIRouter(prefix="/sip", tags=["sip"])
+router = APIRouter(prefix="/sip", tags=["sip-agents"])
 
 # ── Singleton SIP Manager ─────────────────────────────────────────────────
 _sip_manager: Optional[SIPManager] = None
@@ -86,23 +87,25 @@ async def validate_jwt(request: Request) -> dict:
 
 
 # ── Request/Response Models ───────────────────────────────────────────────
-class RegisterTrunkRequest(BaseModel):
+class RegisterAgentRequest(BaseModel):
+    agent_id: str
     local_number: str
+    sip_number: str  # REQUIRED: user must provide their SIP number
     system_prompt: str
     stt: str
     llm: str
     tts: str
-    sip_number: Optional[str] = None
 
 
-class UpdateTrunkRequest(BaseModel):
+class UpdateAgentRequest(BaseModel):
     system_prompt: Optional[str] = None
     stt: Optional[str] = None
     llm: Optional[str] = None
     tts: Optional[str] = None
 
 
-class TrunkResponse(BaseModel):
+class AgentResponse(BaseModel):
+    agent_id: str
     local_number: str
     sip_number: str
     trunk_id: str
@@ -115,10 +118,10 @@ class TrunkResponse(BaseModel):
     created_at: int
 
 
-class TrunkListItem(BaseModel):
+class AgentListItem(BaseModel):
+    agent_id: str
     local_number: str
     sip_number: str
-    trunk_id: str
     status: str
     created_at: int
 
@@ -126,123 +129,124 @@ class TrunkListItem(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
-@router.post("/trunks", response_model=TrunkResponse)
-async def register_trunk(
-    req: RegisterTrunkRequest,
+@router.post("/agents", response_model=AgentResponse)
+async def register_agent(
+    req: RegisterAgentRequest,
     jwt_claims: dict = Depends(validate_jwt),
     manager: SIPManager = Depends(get_sip_manager),
 ):
-    """Register a new SIP trunk (phone number)."""
+    """Register a new agent with a dedicated SIP number."""
     try:
         user_id = jwt_claims.get("user_id", "default_user")
 
-        result = await manager.register_sip_trunk(
+        result = await manager.register_agent(
             user_id=user_id,
+            agent_id=req.agent_id,
             local_number=req.local_number,
+            sip_number=req.sip_number,
             system_prompt=req.system_prompt,
             stt=req.stt,
             llm=req.llm,
             tts=req.tts,
-            sip_number=req.sip_number,
         )
 
-        return TrunkResponse(**result)
+        return AgentResponse(**result)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to register trunk: {e}")
-        raise HTTPException(status_code=500, detail="Failed to register trunk")
+        logger.error(f"Failed to register agent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to register agent")
 
 
-@router.get("/trunks", response_model=list[TrunkListItem])
-async def list_trunks(
+@router.get("/agents", response_model=list[AgentListItem])
+async def list_agents(
     jwt_claims: dict = Depends(validate_jwt),
     manager: SIPManager = Depends(get_sip_manager),
 ):
-    """List all SIP trunks for the user."""
+    """List all agents for the user."""
     try:
         user_id = jwt_claims.get("user_id", "default_user")
-        trunks = await manager.list_sip_trunks(user_id=user_id)
+        agents = await manager.list_agents(user_id=user_id)
 
         return [
-            TrunkListItem(
-                local_number=t["local_number"],
-                sip_number=t["sip_number"],
-                trunk_id=t["trunk_id"],
-                status=t["status"],
-                created_at=t["created_at"],
+            AgentListItem(
+                agent_id=a["agent_id"],
+                local_number=a["local_number"],
+                sip_number=a["sip_number"],
+                status=a["status"],
+                created_at=a["created_at"],
             )
-            for t in trunks
+            for a in agents
         ]
 
     except Exception as e:
-        logger.error(f"Failed to list trunks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list trunks")
+        logger.error(f"Failed to list agents: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list agents")
 
 
-@router.get("/trunks/{local_number}", response_model=TrunkResponse)
-async def get_trunk(
-    local_number: str,
+@router.get("/agents/{agent_id}", response_model=AgentResponse)
+async def get_agent(
+    agent_id: str,
     jwt_claims: dict = Depends(validate_jwt),
     manager: SIPManager = Depends(get_sip_manager),
 ):
-    """Get a specific SIP trunk."""
+    """Get a specific agent config."""
     try:
         user_id = jwt_claims.get("user_id", "default_user")
-        trunk = await manager.get_sip_trunk(user_id=user_id, local_number=local_number)
-        return TrunkResponse(**trunk)
+        agent = await manager.get_agent(user_id=user_id, agent_id=agent_id)
+        return AgentResponse(**agent)
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to get trunk: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get trunk")
+        logger.error(f"Failed to get agent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get agent")
 
 
-@router.patch("/trunks/{local_number}", response_model=TrunkResponse)
-async def update_trunk(
-    local_number: str,
-    req: UpdateTrunkRequest,
+@router.patch("/agents/{agent_id}", response_model=AgentResponse)
+async def update_agent(
+    agent_id: str,
+    req: UpdateAgentRequest,
     jwt_claims: dict = Depends(validate_jwt),
     manager: SIPManager = Depends(get_sip_manager),
 ):
-    """Update a SIP trunk (system prompt, providers)."""
+    """Update an agent's config (system prompt, providers)."""
     try:
         user_id = jwt_claims.get("user_id", "default_user")
 
-        result = await manager.update_sip_trunk(
+        result = await manager.update_agent(
             user_id=user_id,
-            local_number=local_number,
+            agent_id=agent_id,
             system_prompt=req.system_prompt,
             stt=req.stt,
             llm=req.llm,
             tts=req.tts,
         )
 
-        return TrunkResponse(**result)
+        return AgentResponse(**result)
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to update trunk: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update trunk")
+        logger.error(f"Failed to update agent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update agent")
 
 
-@router.delete("/trunks/{local_number}")
-async def delete_trunk(
-    local_number: str,
+@router.delete("/agents/{agent_id}")
+async def delete_agent(
+    agent_id: str,
     jwt_claims: dict = Depends(validate_jwt),
     manager: SIPManager = Depends(get_sip_manager),
 ):
-    """Delete a SIP trunk and dispatch rule."""
+    """Delete an agent and free up their SIP number."""
     try:
         user_id = jwt_claims.get("user_id", "default_user")
-        result = await manager.delete_sip_trunk(user_id=user_id, local_number=local_number)
+        result = await manager.delete_agent(user_id=user_id, agent_id=agent_id)
         return result
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to delete trunk: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete trunk")
+        logger.error(f"Failed to delete agent: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete agent")

@@ -1,13 +1,14 @@
 """
-SIP Trunk and Dispatch Rule Manager with number mapping and Redis storage.
+SIP Agent-to-Number Manager with exclusive number assignment and Redis storage.
 
-Handles dynamic registration and deletion of SIP phone numbers with user isolation.
-Each user can provision multiple local phone numbers mapped to SIP trunks.
+Handles agent provisioning with dedicated phone numbers (local ↔ SIP mapping).
+Each agent owns ONE local/SIP number pair. Numbers can be reassigned to different agents.
 
 Storage format in Redis:
-  Key: sip:{user_id}:{local_number}
+  Key: agent:{user_id}:{agent_id}
   Value: {
-    sip_number: "+1555...",
+    local_number: "09643234042",
+    sip_number: "12707768622",
     trunk_id: "ST_xxx",
     dispatch_rule_id: "SDR_xxx",
     system_prompt: "...",
@@ -17,6 +18,9 @@ Storage format in Redis:
     status: "active",
     created_at: timestamp
   }
+
+  Key: sip:{user_id}:{sip_number}
+  Value: agent_id  (tracks which agent owns this number)
 """
 
 import json
@@ -43,7 +47,7 @@ class SIPManager:
         self.livekit_api_key = livekit_api_key
         self.livekit_api_secret = livekit_api_secret
 
-        # Redis for persistent storage of trunk mappings
+        # Redis for persistent storage
         self.redis_client = redis.Redis(
             host=redis_host,
             port=redis_port,
@@ -69,67 +73,104 @@ class SIPManager:
             await self._lkapi.aclose()
             self._lkapi = None
 
-    def _storage_key(self, user_id: str, local_number: str) -> str:
-        """Generate Redis storage key."""
-        return f"sip:{user_id}:{local_number}"
+    def _agent_key(self, user_id: str, agent_id: str) -> str:
+        """Generate Redis key for agent."""
+        return f"agent:{user_id}:{agent_id}"
 
-    async def register_sip_trunk(
+    def _sip_owner_key(self, user_id: str, sip_number: str) -> str:
+        """Generate Redis key for SIP number ownership tracking."""
+        return f"sip:{user_id}:{sip_number}:owner"
+
+    async def register_agent(
         self,
         user_id: str,
+        agent_id: str,
         local_number: str,
+        sip_number: str,
         system_prompt: str,
         stt: str,
         llm: str,
         tts: str,
-        sip_number: Optional[str] = None,
     ) -> dict:
         """
-        Register a new SIP trunk for a user.
+        Register or update an agent with a dedicated phone number.
 
         Args:
             user_id: User identifier (from JWT)
-            local_number: Local phone number (without dashes, e.g., "09643234042")
+            agent_id: Unique agent identifier
+            local_number: Local phone number (e.g., "09643234042")
+            sip_number: SIP provider number (e.g., "12707768622") - REQUIRED, user-provided
             system_prompt: System prompt for the agent
             stt: STT provider (e.g., "deepgram")
             llm: LLM provider (e.g., "openai")
             tts: TTS provider (e.g., "elevenlabs")
-            sip_number: Actual SIP number (e.g., "+15551234567"). If None, uses local_number.
 
         Returns:
-            Dict with trunk_id, dispatch_rule_id, sip_number, status, etc.
+            Dict with agent config, trunk_id, dispatch_rule_id, status, etc.
         """
-        # Use local_number as SIP number if not provided (simplest case)
-        if sip_number is None:
-            sip_number = f"+1{local_number}" if len(local_number) > 6 else f"+{local_number}"
+        if not sip_number:
+            raise ValueError("sip_number is required and must be provided by user")
 
-        storage_key = self._storage_key(user_id, local_number)
+        agent_key = self._agent_key(user_id, agent_id)
+        sip_owner_key = self._sip_owner_key(user_id, sip_number)
 
-        # Check if already exists
-        existing = self.redis_client.get(storage_key)
-        if existing:
-            logger.warning(
-                f"Trunk already exists for {local_number} (user {user_id}). Skipping."
-            )
-            return json.loads(existing)
+        # Check if this agent already has a number assigned - if different, detach old one
+        existing_agent = self.redis_client.get(agent_key)
+        if existing_agent:
+            old_config = json.loads(existing_agent)
+            if old_config["sip_number"] != sip_number:
+                # Agent is being reassigned to a different number
+                await self._detach_number_from_agent(
+                    user_id, agent_id, old_config["sip_number"]
+                )
+                logger.info(
+                    f"Detached agent {agent_id} from number {old_config['sip_number']}"
+                )
+
+        # Check if this SIP number is already owned by a different agent
+        current_owner = self.redis_client.get(sip_owner_key)
+        if current_owner and current_owner != agent_id:
+            # Number is owned by different agent - detach from them
+            await self._detach_number_from_agent(user_id, current_owner, sip_number)
+            logger.info(f"Detached agent {current_owner} from number {sip_number}")
 
         lkapi = await self._get_lkapi()
 
         try:
-            # Create inbound trunk
-            trunk = api.SIPInboundTrunkInfo(
-                name=f"Trunk: {local_number}",
-                numbers=[sip_number],
-                krisp_enabled=True,
-            )
-            created_trunk = await lkapi.sip.create_sip_inbound_trunk(
-                api.CreateSIPInboundTrunkRequest(trunk=trunk)
-            )
-            trunk_id = created_trunk.sip_trunk_id
-            logger.info(f"Created trunk {trunk_id} for {sip_number}")
+            trunk_id = None
+            dispatch_rule_id = None
 
-            # Create dispatch rule with room metadata containing all config
+            # Check if trunk already exists for this SIP number
+            existing_trunks = await lkapi.sip.list_sip_inbound_trunk(
+                api.ListSIPInboundTrunkRequest()
+            )
+            existing_trunk = None
+            for trunk in existing_trunks.items:
+                if sip_number in trunk.numbers:
+                    existing_trunk = trunk
+                    trunk_id = trunk.sip_trunk_id
+                    break
+
+            # Create trunk only if it doesn't exist
+            if not existing_trunk:
+                trunk = api.SIPInboundTrunkInfo(
+                    name=f"Trunk: {local_number}",
+                    numbers=[sip_number],
+                    krisp_enabled=True,
+                )
+                created_trunk = await lkapi.sip.create_sip_inbound_trunk(
+                    api.CreateSIPInboundTrunkRequest(trunk=trunk)
+                )
+                trunk_id = created_trunk.sip_trunk_id
+                logger.info(f"Created trunk {trunk_id} for {sip_number}")
+            else:
+                logger.info(f"Reusing existing trunk {trunk_id} for {sip_number}")
+
+            # Create dispatch rule with agent config
             metadata = {
+                "agent_id": agent_id,
                 "local_number": local_number,
+                "sip_number": sip_number,
                 "system_prompt": system_prompt,
                 "stt": stt,
                 "llm": llm,
@@ -137,7 +178,7 @@ class SIPManager:
             }
             room_metadata = json.dumps(metadata)
 
-            room_prefix = f"sip-{user_id[:8]}-{local_number}-"
+            room_prefix = f"sip-{user_id[:8]}-{agent_id}-"
 
             rule = api.SIPDispatchRule(
                 dispatch_rule_individual=api.SIPDispatchRuleIndividual(
@@ -148,7 +189,7 @@ class SIPManager:
             dispatch_request = api.CreateSIPDispatchRuleRequest(
                 dispatch_rule=api.SIPDispatchRuleInfo(
                     rule=rule,
-                    name=f"Dispatch: {local_number}",
+                    name=f"Dispatch: {agent_id}",
                     trunk_ids=[trunk_id],
                     room_config=api.RoomConfiguration(
                         metadata=room_metadata,
@@ -164,10 +205,11 @@ class SIPManager:
 
             created_rule = await lkapi.sip.create_sip_dispatch_rule(dispatch_request)
             dispatch_rule_id = created_rule.sip_dispatch_rule_id
-            logger.info(f"Created dispatch rule {dispatch_rule_id} for {local_number}")
+            logger.info(f"Created dispatch rule {dispatch_rule_id} for {agent_id}")
 
-            # Store in Redis
+            # Store agent config in Redis
             config = {
+                "agent_id": agent_id,
                 "local_number": local_number,
                 "sip_number": sip_number,
                 "trunk_id": trunk_id,
@@ -179,98 +221,121 @@ class SIPManager:
                 "status": "active",
                 "created_at": int(time.time()),
             }
-            self.redis_client.set(storage_key, json.dumps(config))
-            logger.info(f"Stored config in Redis: {storage_key}")
+            self.redis_client.set(agent_key, json.dumps(config))
+            # Track ownership of this SIP number
+            self.redis_client.set(sip_owner_key, agent_id)
+            logger.info(f"Registered agent {agent_id} with number {sip_number}")
 
             return config
 
         except Exception as e:
-            logger.error(f"Failed to register SIP trunk: {e}")
+            logger.error(f"Failed to register agent: {e}")
             raise
 
-    async def delete_sip_trunk(self, user_id: str, local_number: str) -> dict:
+    async def _detach_number_from_agent(
+        self, user_id: str, agent_id: str, sip_number: str
+    ) -> None:
+        """Detach a SIP number from an agent (cleanup)."""
+        agent_key = self._agent_key(user_id, agent_id)
+        sip_owner_key = self._sip_owner_key(user_id, sip_number)
+
+        # Remove from ownership tracking
+        self.redis_client.delete(sip_owner_key)
+
+        # Note: We DON'T delete the agent key here - just clear the number reference
+        # The agent is effectively "numberless" until reassigned
+        agent_data = self.redis_client.get(agent_key)
+        if agent_data:
+            config = json.loads(agent_data)
+            config["sip_number"] = None
+            config["status"] = "unassigned"
+            self.redis_client.set(agent_key, json.dumps(config))
+
+        logger.info(f"Detached number {sip_number} from agent {agent_id}")
+
+    async def delete_agent(self, user_id: str, agent_id: str) -> dict:
         """
-        Delete a SIP trunk and dispatch rule.
+        Delete an agent and unassign their SIP number.
 
         Args:
             user_id: User identifier
-            local_number: Local phone number
+            agent_id: Agent identifier
 
         Returns:
-            Dict with deleted=True and trunk details
+            Dict with deleted=True and agent details
         """
-        storage_key = self._storage_key(user_id, local_number)
+        agent_key = self._agent_key(user_id, agent_id)
 
-        # Get config from Redis
-        config_str = self.redis_client.get(storage_key)
+        # Get agent config from Redis
+        config_str = self.redis_client.get(agent_key)
         if not config_str:
-            raise ValueError(f"Trunk not found for {local_number}")
+            raise ValueError(f"Agent not found: {agent_id}")
 
         config = json.loads(config_str)
-        trunk_id = config["trunk_id"]
-        dispatch_rule_id = config["dispatch_rule_id"]
+        dispatch_rule_id = config.get("dispatch_rule_id")
+        sip_number = config.get("sip_number")
 
         lkapi = await self._get_lkapi()
 
         try:
-            # Delete dispatch rule first
+            # Delete dispatch rule
             if dispatch_rule_id:
                 await lkapi.sip.delete_sip_dispatch_rule(
                     api.DeleteSIPDispatchRuleRequest(sip_dispatch_rule_id=dispatch_rule_id)
                 )
                 logger.info(f"Deleted dispatch rule {dispatch_rule_id}")
 
-            # Then delete trunk
-            if trunk_id:
-                await lkapi.sip.delete_sip_trunk(
-                    api.DeleteSIPTrunkRequest(sip_trunk_id=trunk_id)
-                )
-                logger.info(f"Deleted trunk {trunk_id}")
+            # Note: We DON'T delete the trunk here - it might be reused by other agents
+            # Trunks are permanent and tied to provider numbers
 
-            # Remove from Redis
-            self.redis_client.delete(storage_key)
-            logger.info(f"Removed from Redis: {storage_key}")
+            # Detach number from agent
+            if sip_number:
+                await self._detach_number_from_agent(user_id, agent_id, sip_number)
+
+            # Remove agent from Redis
+            self.redis_client.delete(agent_key)
+            logger.info(f"Deleted agent {agent_id}")
 
             return {
                 "deleted": True,
-                "local_number": local_number,
-                "sip_number": config["sip_number"],
-                "trunk_id": trunk_id,
+                "agent_id": agent_id,
+                "local_number": config.get("local_number"),
+                "sip_number": sip_number,
             }
 
         except Exception as e:
-            logger.error(f"Failed to delete SIP trunk: {e}")
+            logger.error(f"Failed to delete agent: {e}")
             raise
 
-    async def update_sip_trunk(
+    async def update_agent(
         self,
         user_id: str,
-        local_number: str,
+        agent_id: str,
         system_prompt: Optional[str] = None,
         stt: Optional[str] = None,
         llm: Optional[str] = None,
         tts: Optional[str] = None,
     ) -> dict:
         """
-        Update dispatch rule metadata (system prompt and provider config).
+        Update agent configuration (system prompt and provider config).
 
         Args:
             user_id: User identifier
-            local_number: Local phone number
+            agent_id: Agent identifier
             system_prompt: New system prompt (optional)
             stt: New STT provider (optional)
             llm: New LLM provider (optional)
             tts: New TTS provider (optional)
 
         Returns:
-            Updated config dict
+            Updated agent config dict
         """
-        storage_key = self._storage_key(user_id, local_number)
+        agent_key = self._agent_key(user_id, agent_id)
 
         # Get existing config
-        config_str = self.redis_client.get(storage_key)
+        config_str = self.redis_client.get(agent_key)
         if not config_str:
-            raise ValueError(f"Trunk not found for {local_number}")
+            raise ValueError(f"Agent not found: {agent_id}")
 
         config = json.loads(config_str)
         dispatch_rule_id = config["dispatch_rule_id"]
@@ -287,7 +352,9 @@ class SIPManager:
 
         # Update dispatch rule with new metadata
         metadata = {
+            "agent_id": config["agent_id"],
             "local_number": config["local_number"],
+            "sip_number": config["sip_number"],
             "system_prompt": config["system_prompt"],
             "stt": config["stt"],
             "llm": config["llm"],
@@ -331,52 +398,52 @@ class SIPManager:
             logger.info(f"Updated dispatch rule {dispatch_rule_id}")
 
             # Update Redis
-            self.redis_client.set(storage_key, json.dumps(config))
-            logger.info(f"Updated config in Redis: {storage_key}")
+            self.redis_client.set(agent_key, json.dumps(config))
+            logger.info(f"Updated agent {agent_id} in Redis")
 
             return config
 
         except Exception as e:
-            logger.error(f"Failed to update SIP trunk: {e}")
+            logger.error(f"Failed to update agent: {e}")
             raise
 
-    async def list_sip_trunks(self, user_id: str) -> list[dict]:
+    async def list_agents(self, user_id: str) -> list[dict]:
         """
-        List all trunks for a user.
+        List all agents for a user.
 
         Args:
             user_id: User identifier
 
         Returns:
-            List of trunk configs
+            List of agent configs
         """
-        # Get all keys for this user
-        pattern = self._storage_key(user_id, "*")
+        # Get all agent keys for this user
+        pattern = self._agent_key(user_id, "*")
         keys = self.redis_client.keys(pattern)
 
-        trunks = []
+        agents = []
         for key in keys:
             config_str = self.redis_client.get(key)
             if config_str:
-                trunks.append(json.loads(config_str))
+                agents.append(json.loads(config_str))
 
-        return trunks
+        return agents
 
-    async def get_sip_trunk(self, user_id: str, local_number: str) -> dict:
+    async def get_agent(self, user_id: str, agent_id: str) -> dict:
         """
-        Get a specific trunk config.
+        Get a specific agent config.
 
         Args:
             user_id: User identifier
-            local_number: Local phone number
+            agent_id: Agent identifier
 
         Returns:
-            Trunk config dict
+            Agent config dict
         """
-        storage_key = self._storage_key(user_id, local_number)
-        config_str = self.redis_client.get(storage_key)
+        agent_key = self._agent_key(user_id, agent_id)
+        config_str = self.redis_client.get(agent_key)
 
         if not config_str:
-            raise ValueError(f"Trunk not found for {local_number}")
+            raise ValueError(f"Agent not found: {agent_id}")
 
         return json.loads(config_str)
