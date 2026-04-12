@@ -14,6 +14,8 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .
