@@ -1,6 +1,6 @@
 /**
  * Proxy API for SIP agent management
- * Forwards requests to livekit_agent:8089/sip/agents
+ * Forwards requests to sip_api:8089/sip/agents
  *
  * Handles all SIP API paths:
  * - GET/POST  /api/sip/agents        → /sip/agents
