@@ -37,13 +37,36 @@ services:
     networks:
       - agent_network
 
+  sip_api:
+    platform: linux/amd64
+    build:
+      context: ./livekit_agent
+      dockerfile: Dockerfile.sip
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+    depends_on:
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8089/docs > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - agent_network
+
   livekit_agent:
     platform: linux/amd64
     build:
       context: ./livekit_agent
     restart: unless-stopped
-    ports:
-      - "8089:8089"  # SIP API management endpoint
     volumes:
       - ./livekit_agent/src:/app/src
     env_file:
@@ -96,6 +119,8 @@ services:
         condition: service_started
       livekit_agent:
         condition: service_started
+      sip_api:
+        condition: service_healthy
     networks:
       - agent_network
 

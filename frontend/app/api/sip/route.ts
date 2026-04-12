@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const SIP_API_BASE =
   process.env.SIP_API_BASE ||
-  (process.env.NODE_ENV === 'production' ? 'http://livekit_agent:8089' : 'http://localhost:8089');
+  (process.env.NODE_ENV === 'production' ? 'http://sip_api:8089' : 'http://localhost:8089');
 
 function getSIPPath(pathname: string): string {
   // Extract path after /api/sip/
