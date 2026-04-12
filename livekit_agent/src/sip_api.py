@@ -13,7 +13,6 @@ Endpoints:
   DELETE /sip/agents/{agent_id}   - Delete agent and free up number
 """
 
-import json
 import logging
 import os
 from typing import Optional
@@ -64,8 +63,6 @@ async def validate_jwt(request: Request) -> dict:
     token = auth_header[7:]  # Remove "Bearer " prefix
 
     try:
-        from livekit import api
-
         # For now, use a simple validation by checking if token is present
         # In production, use livekit.access_token module to decode and verify JWT
         # This is a placeholder - the actual JWT validation would decode the token

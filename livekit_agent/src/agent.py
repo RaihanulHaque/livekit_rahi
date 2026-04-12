@@ -17,6 +17,9 @@ from pipeline import build_session
 
 logger = logging.getLogger("agent")
 
+# Global flag to ensure SIP API server starts only once
+_sip_api_started = False
+
 
 server = AgentServer(job_memory_warn_mb=1024)
 
@@ -46,10 +49,13 @@ def _start_sip_api_server():
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
-    # Start SIP API server in background thread
-    api_thread = threading.Thread(target=_start_sip_api_server, daemon=True)
-    api_thread.start()
-    logger.info("SIP API server thread started")
+    # Start SIP API server in background thread (only once)
+    global _sip_api_started
+    if not _sip_api_started:
+        _sip_api_started = True
+        api_thread = threading.Thread(target=_start_sip_api_server, daemon=True)
+        api_thread.start()
+        logger.info("SIP API server thread started")
 
 
 server.setup_fnc = prewarm
