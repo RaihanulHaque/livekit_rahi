@@ -407,6 +407,119 @@ class SIPManager:
             logger.error(f"Failed to update agent: {e}")
             raise
 
+    # ── Outbound Trunk Methods ─────────────────────────────────────────────
+
+    def _outbound_trunk_key(self, user_id: str, trunk_id: str) -> str:
+        return f"outbound_trunk:{user_id}:{trunk_id}"
+
+    async def create_outbound_trunk(
+        self,
+        user_id: str,
+        name: str,
+        address: str,
+        auth_username: str,
+        auth_password: str,
+        numbers: list[str],
+    ) -> dict:
+        """Create a SIP outbound trunk for making calls."""
+        from livekit.protocol.sip import SIPOutboundTrunkInfo, CreateSIPOutboundTrunkRequest
+
+        lkapi = await self._get_lkapi()
+        trunk_info = SIPOutboundTrunkInfo(
+            name=name,
+            address=address,
+            numbers=numbers,
+            auth_username=auth_username,
+            auth_password=auth_password,
+        )
+        created = await lkapi.sip.create_sip_outbound_trunk(
+            CreateSIPOutboundTrunkRequest(trunk=trunk_info)
+        )
+        trunk_id = created.sip_trunk_id
+
+        config = {
+            "trunk_id": trunk_id,
+            "name": name,
+            "address": address,
+            "numbers": numbers,
+            "auth_username": auth_username,
+            "created_at": int(time.time()),
+        }
+        self.redis_client.set(self._outbound_trunk_key(user_id, trunk_id), json.dumps(config))
+        logger.info(f"Created outbound trunk {trunk_id} for user {user_id}")
+        return config
+
+    async def list_outbound_trunks(self, user_id: str) -> list[dict]:
+        """List all outbound trunks for a user."""
+        pattern = self._outbound_trunk_key(user_id, "*")
+        keys = self.redis_client.keys(pattern)
+        trunks = []
+        for key in keys:
+            data = self.redis_client.get(key)
+            if data:
+                trunks.append(json.loads(data))
+        return trunks
+
+    async def delete_outbound_trunk(self, user_id: str, trunk_id: str) -> dict:
+        """Delete an outbound trunk."""
+        from livekit.protocol.sip import DeleteSIPOutboundTrunkRequest
+
+        key = self._outbound_trunk_key(user_id, trunk_id)
+        data = self.redis_client.get(key)
+        if not data:
+            raise ValueError(f"Outbound trunk not found: {trunk_id}")
+
+        lkapi = await self._get_lkapi()
+        await lkapi.sip.delete_sip_outbound_trunk(
+            DeleteSIPOutboundTrunkRequest(sip_trunk_id=trunk_id)
+        )
+        self.redis_client.delete(key)
+        logger.info(f"Deleted outbound trunk {trunk_id}")
+        return {"deleted": True, "trunk_id": trunk_id}
+
+    async def initiate_outbound_call(
+        self,
+        user_id: str,
+        agent_id: str,
+        phone_number: str,
+        outbound_trunk_id: str,
+        display_name: Optional[str] = None,
+    ) -> dict:
+        """Dispatch agent to a new room and place outbound call to phone_number."""
+        agent_config = await self.get_agent(user_id=user_id, agent_id=agent_id)
+
+        room_name = f"outbound-{user_id[:8]}-{agent_id}-{int(time.time())}"
+
+        metadata = json.dumps({
+            "phone_number": phone_number,
+            "outbound_trunk_id": outbound_trunk_id,
+            "display_name": display_name or "",
+            "system_prompt": agent_config.get("system_prompt", ""),
+            "stt": agent_config.get("stt", "deepgram"),
+            "llm": agent_config.get("llm", "openai"),
+            "tts": agent_config.get("tts", "elevenlabs"),
+            "agent_id": agent_id,
+        })
+
+        lkapi = await self._get_lkapi()
+        dispatch = await lkapi.agent_dispatch.create_dispatch(
+            api.CreateAgentDispatchRequest(
+                agent_name="",
+                room=room_name,
+                metadata=metadata,
+            )
+        )
+
+        logger.info(f"Dispatched outbound call to {phone_number} in room {room_name}")
+        return {
+            "room_name": room_name,
+            "dispatch_id": dispatch.dispatch_id,
+            "agent_id": agent_id,
+            "phone_number": phone_number,
+            "outbound_trunk_id": outbound_trunk_id,
+            "status": "dialing",
+        }
+
     async def list_agents(self, user_id: str) -> list[dict]:
         """
         List all agents for a user.

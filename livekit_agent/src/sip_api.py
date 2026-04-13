@@ -90,6 +90,39 @@ class UpdateAgentRequest(BaseModel):
     tts: Optional[str] = None
 
 
+class CreateOutboundTrunkRequest(BaseModel):
+    name: str
+    address: str
+    auth_username: str
+    auth_password: str
+    numbers: list[str]
+
+
+class OutboundTrunkResponse(BaseModel):
+    trunk_id: str
+    name: str
+    address: str
+    numbers: list[str]
+    auth_username: str
+    created_at: int
+
+
+class InitiateCallRequest(BaseModel):
+    agent_id: str
+    phone_number: str
+    outbound_trunk_id: str
+    display_name: Optional[str] = None
+
+
+class CallResponse(BaseModel):
+    room_name: str
+    dispatch_id: str
+    agent_id: str
+    phone_number: str
+    outbound_trunk_id: str
+    status: str
+
+
 class AgentResponse(BaseModel):
     agent_id: str
     local_number: str
@@ -236,3 +269,85 @@ async def delete_agent(
     except Exception as e:
         logger.error(f"Failed to delete agent: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete agent")
+
+
+# ── Outbound Trunk Endpoints ───────────────────────────────────────────────
+
+
+@router.post("/outbound-trunks", response_model=OutboundTrunkResponse)
+async def create_outbound_trunk(
+    req: CreateOutboundTrunkRequest,
+    jwt_claims: dict = Depends(validate_jwt),
+    manager: SIPManager = Depends(get_sip_manager),
+):
+    """Create an outbound SIP trunk for making calls."""
+    try:
+        user_id = jwt_claims.get("user_id", "default_user")
+        result = await manager.create_outbound_trunk(
+            user_id=user_id,
+            name=req.name,
+            address=req.address,
+            auth_username=req.auth_username,
+            auth_password=req.auth_password,
+            numbers=req.numbers,
+        )
+        return OutboundTrunkResponse(**result)
+    except Exception as e:
+        logger.error(f"Failed to create outbound trunk: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create outbound trunk")
+
+
+@router.get("/outbound-trunks", response_model=list[OutboundTrunkResponse])
+async def list_outbound_trunks(
+    jwt_claims: dict = Depends(validate_jwt),
+    manager: SIPManager = Depends(get_sip_manager),
+):
+    """List all outbound trunks for the user."""
+    try:
+        user_id = jwt_claims.get("user_id", "default_user")
+        trunks = await manager.list_outbound_trunks(user_id=user_id)
+        return [OutboundTrunkResponse(**t) for t in trunks]
+    except Exception as e:
+        logger.error(f"Failed to list outbound trunks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list outbound trunks")
+
+
+@router.delete("/outbound-trunks/{trunk_id}")
+async def delete_outbound_trunk(
+    trunk_id: str,
+    jwt_claims: dict = Depends(validate_jwt),
+    manager: SIPManager = Depends(get_sip_manager),
+):
+    """Delete an outbound trunk."""
+    try:
+        user_id = jwt_claims.get("user_id", "default_user")
+        return await manager.delete_outbound_trunk(user_id=user_id, trunk_id=trunk_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to delete outbound trunk: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete outbound trunk")
+
+
+@router.post("/outbound/call", response_model=CallResponse)
+async def initiate_call(
+    req: InitiateCallRequest,
+    jwt_claims: dict = Depends(validate_jwt),
+    manager: SIPManager = Depends(get_sip_manager),
+):
+    """Initiate an outbound call using an agent's config."""
+    try:
+        user_id = jwt_claims.get("user_id", "default_user")
+        result = await manager.initiate_outbound_call(
+            user_id=user_id,
+            agent_id=req.agent_id,
+            phone_number=req.phone_number,
+            outbound_trunk_id=req.outbound_trunk_id,
+            display_name=req.display_name,
+        )
+        return CallResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to initiate call: {e}")
+        raise HTTPException(status_code=500, detail="Failed to initiate call")
