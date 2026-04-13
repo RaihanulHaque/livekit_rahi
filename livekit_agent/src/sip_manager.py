@@ -33,7 +33,7 @@ import redis
 from livekit import api
 
 logger = logging.getLogger("sip_manager")
-OUTBOUND_AGENT_NAME = os.environ.get("OUTBOUND_AGENT_NAME", "telephony-outbound-agent")
+OUTBOUND_AGENT_NAME = os.environ.get("OUTBOUND_AGENT_NAME", "")
 
 
 class SIPManager:

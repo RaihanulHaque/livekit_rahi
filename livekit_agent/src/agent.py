@@ -1,5 +1,4 @@
 import logging
-import os
 import json
 from livekit import rtc
 from livekit import api
@@ -21,7 +20,6 @@ logger = logging.getLogger("agent")
 
 
 server = AgentServer(job_memory_warn_mb=1024)
-OUTBOUND_AGENT_NAME = os.environ.get("OUTBOUND_AGENT_NAME", "telephony-outbound-agent")
 
 
 def prewarm(proc: JobProcess):
@@ -79,7 +77,8 @@ def _build_outbound_dial_info(room_config: dict, job_config: dict) -> dict:
     }
 
 
-async def _run_agent_session(ctx: JobContext, *, allow_outbound: bool) -> None:
+@server.rtc_session()
+async def my_agent(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
@@ -90,11 +89,7 @@ async def _run_agent_session(ctx: JobContext, *, allow_outbound: bool) -> None:
     config = _parse_json_dict(ctx.room.metadata)
     job_config = _parse_json_dict(ctx.job.metadata)
     dial_info = _build_outbound_dial_info(config, job_config)
-    is_outbound = (
-        allow_outbound
-        and bool(dial_info["phone_number"])
-        and bool(dial_info["outbound_trunk_id"])
-    )
+    is_outbound = bool(dial_info["phone_number"]) and bool(dial_info["outbound_trunk_id"])
 
     system_prompt: str | None = config.get("system_prompt") or None
 
@@ -140,16 +135,6 @@ async def _run_agent_session(ctx: JobContext, *, allow_outbound: bool) -> None:
             audio_input=_build_audio_input_options(),
         ),
     )
-
-
-@server.rtc_session()
-async def my_agent(ctx: JobContext):
-    await _run_agent_session(ctx, allow_outbound=False)
-
-
-@server.rtc_session(agent_name=OUTBOUND_AGENT_NAME)
-async def outbound_agent(ctx: JobContext):
-    await _run_agent_session(ctx, allow_outbound=True)
 
 
 if __name__ == "__main__":
