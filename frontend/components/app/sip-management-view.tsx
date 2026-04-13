@@ -129,7 +129,15 @@ export const SipManagementView = ({
         body: JSON.stringify(agentForm),
       });
       if (!res.ok) throw new Error(await res.text());
-      setAgentForm({ agent_id: '', local_number: '', sip_number: '', system_prompt: '', stt: 'deepgram', llm: 'openai', tts: 'elevenlabs' });
+      setAgentForm({
+        agent_id: '',
+        local_number: '',
+        sip_number: '',
+        system_prompt: '',
+        stt: 'deepgram',
+        llm: 'openai',
+        tts: 'elevenlabs',
+      });
       setShowAddAgent(false);
       await fetchAgents();
     } catch (err) {
@@ -143,7 +151,10 @@ export const SipManagementView = ({
     if (!confirm(`Delete agent ${agentId}?`)) return;
     setAgentsLoading(true);
     try {
-      const res = await fetch(`/api/sip/agents/${agentId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetch(`/api/sip/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error('Failed to delete agent');
       await fetchAgents();
     } catch (err) {
@@ -159,7 +170,10 @@ export const SipManagementView = ({
     setTrunksLoading(true);
     setTrunksError('');
     try {
-      const numbers = trunkForm.numbers.split(',').map((n) => n.trim()).filter(Boolean);
+      const numbers = trunkForm.numbers
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean);
       const res = await fetch('/api/sip/outbound-trunks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -180,7 +194,10 @@ export const SipManagementView = ({
     if (!confirm(`Delete outbound trunk ${trunkId}?`)) return;
     setTrunksLoading(true);
     try {
-      const res = await fetch(`/api/sip/outbound-trunks/${trunkId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetch(`/api/sip/outbound-trunks/${trunkId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error('Failed to delete trunk');
       await fetchTrunks();
     } catch (err) {
@@ -217,9 +234,8 @@ export const SipManagementView = ({
   return (
     <div ref={ref} className="mx-auto w-full max-w-2xl p-6" {...props}>
       <div className="bg-background border-border rounded-lg border p-6">
-
         {/* Tab Header */}
-        <div className="mb-6 flex gap-2 border-b border-border pb-4">
+        <div className="border-border mb-6 flex gap-2 border-b pb-4">
           <button
             onClick={() => setActiveTab('inbound')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -250,7 +266,11 @@ export const SipManagementView = ({
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-foreground text-xl font-bold">Inbound Agents</h2>
               {!showAddAgent && (
-                <Button onClick={() => setShowAddAgent(true)} disabled={agentsLoading} className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowAddAgent(true)}
+                  disabled={agentsLoading}
+                  className="flex items-center gap-2"
+                >
                   <Plus className="h-4 w-4" />
                   Add Agent
                 </Button>
@@ -265,54 +285,101 @@ export const SipManagementView = ({
             )}
 
             {showAddAgent && (
-              <form onSubmit={handleAddAgent} className="bg-muted border-border mb-6 rounded-lg border p-4">
+              <form
+                onSubmit={handleAddAgent}
+                className="bg-muted border-border mb-6 rounded-lg border p-4"
+              >
                 <h3 className="text-foreground mb-4 font-semibold">Add Inbound Agent</h3>
                 <div className="space-y-3">
                   {[
                     { label: 'Agent ID', key: 'agent_id', placeholder: 'e.g., hvac_support' },
-                    { label: 'Local Number', key: 'local_number', placeholder: 'e.g., 09643234042' },
+                    {
+                      label: 'Local Number',
+                      key: 'local_number',
+                      placeholder: 'e.g., 09643234042',
+                    },
                     { label: 'SIP Number', key: 'sip_number', placeholder: 'e.g., 12707768622' },
                   ].map(({ label, key, placeholder }) => (
                     <div key={key}>
-                      <label className="text-foreground mb-1 block text-sm font-medium">{label}</label>
+                      <label className="text-foreground mb-1 block text-sm font-medium">
+                        {label}
+                      </label>
                       <input
                         type="text"
                         placeholder={placeholder}
                         value={agentForm[key as keyof typeof agentForm]}
                         onChange={(e) => setAgentForm({ ...agentForm, [key]: e.target.value })}
-                        className="border-border bg-background text-foreground placeholder-muted-foreground w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                         required
                       />
                     </div>
                   ))}
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">System Prompt</label>
+                    <label className="text-foreground mb-1 block text-sm font-medium">
+                      System Prompt
+                    </label>
                     <textarea
                       placeholder="You are a professional support agent..."
                       value={agentForm.system_prompt}
-                      onChange={(e) => setAgentForm({ ...agentForm, system_prompt: e.target.value })}
-                      className="border-border bg-background text-foreground placeholder-muted-foreground h-20 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      onChange={(e) =>
+                        setAgentForm({ ...agentForm, system_prompt: e.target.value })
+                      }
+                      className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary h-20 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                       required
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {(['stt', 'llm', 'tts'] as const).map((field) => (
                       <div key={field}>
-                        <label className="text-foreground mb-1 block text-sm font-medium uppercase">{field}</label>
-                        <Select value={agentForm[field]} onValueChange={(v) => setAgentForm({ ...agentForm, [field]: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <label className="text-foreground mb-1 block text-sm font-medium uppercase">
+                          {field}
+                        </label>
+                        <Select
+                          value={agentForm[field]}
+                          onValueChange={(v) => setAgentForm({ ...agentForm, [field]: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
-                            {field === 'stt' && <><SelectItem value="deepgram">Deepgram</SelectItem><SelectItem value="whisper">Whisper</SelectItem></>}
-                            {field === 'llm' && <><SelectItem value="openai">OpenAI</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="groq">Groq</SelectItem><SelectItem value="langchain">LangChain</SelectItem></>}
-                            {field === 'tts' && <><SelectItem value="elevenlabs">ElevenLabs</SelectItem><SelectItem value="openai">OpenAI</SelectItem><SelectItem value="kokoro">Kokoro</SelectItem></>}
+                            {field === 'stt' && (
+                              <>
+                                <SelectItem value="deepgram">Deepgram</SelectItem>
+                                <SelectItem value="whisper">Whisper</SelectItem>
+                              </>
+                            )}
+                            {field === 'llm' && (
+                              <>
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="google">Google</SelectItem>
+                                <SelectItem value="groq">Groq</SelectItem>
+                                <SelectItem value="langchain">LangChain</SelectItem>
+                              </>
+                            )}
+                            {field === 'tts' && (
+                              <>
+                                <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="kokoro">Kokoro</SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                     ))}
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setShowAddAgent(false)} disabled={agentsLoading}>Cancel</Button>
-                    <Button type="submit" disabled={agentsLoading}>{agentsLoading ? 'Adding...' : 'Add Agent'}</Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAddAgent(false)}
+                      disabled={agentsLoading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={agentsLoading}>
+                      {agentsLoading ? 'Adding...' : 'Add Agent'}
+                    </Button>
                   </div>
                 </div>
               </form>
@@ -320,16 +387,29 @@ export const SipManagementView = ({
 
             <div className="space-y-3">
               {agents.length === 0 ? (
-                <p className="text-muted-foreground py-8 text-center">No inbound agents added yet</p>
+                <p className="text-muted-foreground py-8 text-center">
+                  No inbound agents added yet
+                </p>
               ) : (
                 agents.map((agent) => (
-                  <div key={agent.agent_id} className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-4">
+                  <div
+                    key={agent.agent_id}
+                    className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-4"
+                  >
                     <div>
                       <p className="text-foreground font-semibold">{agent.agent_id}</p>
-                      <p className="text-muted-foreground text-sm">Local: {agent.local_number} → SIP: {agent.sip_number}</p>
-                      <span className="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">{agent.status}</span>
+                      <p className="text-muted-foreground text-sm">
+                        Local: {agent.local_number} → SIP: {agent.sip_number}
+                      </p>
+                      <span className="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                        {agent.status}
+                      </span>
                     </div>
-                    <button onClick={() => handleDeleteAgent(agent.agent_id)} disabled={agentsLoading} className="rounded-lg p-2 hover:bg-red-50">
+                    <button
+                      onClick={() => handleDeleteAgent(agent.agent_id)}
+                      disabled={agentsLoading}
+                      className="rounded-lg p-2 hover:bg-red-50"
+                    >
                       <Trash className="h-5 w-5 text-red-600" />
                     </button>
                   </div>
@@ -347,7 +427,11 @@ export const SipManagementView = ({
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-foreground text-xl font-bold">Outbound Trunks</h2>
                 {!showAddTrunk && (
-                  <Button onClick={() => setShowAddTrunk(true)} disabled={trunksLoading} className="flex items-center gap-2">
+                  <Button
+                    onClick={() => setShowAddTrunk(true)}
+                    disabled={trunksLoading}
+                    className="flex items-center gap-2"
+                  >
                     <Plus className="h-4 w-4" />
                     Add Trunk
                   </Button>
@@ -362,31 +446,70 @@ export const SipManagementView = ({
               )}
 
               {showAddTrunk && (
-                <form onSubmit={handleAddTrunk} className="bg-muted border-border mb-4 rounded-lg border p-4">
+                <form
+                  onSubmit={handleAddTrunk}
+                  className="bg-muted border-border mb-4 rounded-lg border p-4"
+                >
                   <h3 className="text-foreground mb-3 font-semibold">Add Outbound Trunk</h3>
                   <div className="space-y-3">
                     {[
-                      { label: 'Name', key: 'name', placeholder: 'My outbound trunk', type: 'text' },
-                      { label: 'SIP Address', key: 'address', placeholder: 'sip.telnyx.com or trunk.twilio.com', type: 'text' },
-                      { label: 'Auth Username', key: 'auth_username', placeholder: 'SIP username', type: 'text' },
-                      { label: 'Auth Password', key: 'auth_password', placeholder: 'SIP password', type: 'password' },
-                      { label: 'Numbers (comma-separated)', key: 'numbers', placeholder: '+15105550100, +15105550101', type: 'text' },
+                      {
+                        label: 'Name',
+                        key: 'name',
+                        placeholder: 'My outbound trunk',
+                        type: 'text',
+                      },
+                      {
+                        label: 'SIP Address',
+                        key: 'address',
+                        placeholder: 'sip.telnyx.com or trunk.twilio.com',
+                        type: 'text',
+                      },
+                      {
+                        label: 'Auth Username',
+                        key: 'auth_username',
+                        placeholder: 'SIP username',
+                        type: 'text',
+                      },
+                      {
+                        label: 'Auth Password',
+                        key: 'auth_password',
+                        placeholder: 'SIP password',
+                        type: 'password',
+                      },
+                      {
+                        label: 'Numbers (comma-separated)',
+                        key: 'numbers',
+                        placeholder: '+15105550100, +15105550101',
+                        type: 'text',
+                      },
                     ].map(({ label, key, placeholder, type }) => (
                       <div key={key}>
-                        <label className="text-foreground mb-1 block text-sm font-medium">{label}</label>
+                        <label className="text-foreground mb-1 block text-sm font-medium">
+                          {label}
+                        </label>
                         <input
                           type={type}
                           placeholder={placeholder}
                           value={trunkForm[key as keyof typeof trunkForm]}
                           onChange={(e) => setTrunkForm({ ...trunkForm, [key]: e.target.value })}
-                          className="border-border bg-background text-foreground placeholder-muted-foreground w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                           required
                         />
                       </div>
                     ))}
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={() => setShowAddTrunk(false)} disabled={trunksLoading}>Cancel</Button>
-                      <Button type="submit" disabled={trunksLoading}>{trunksLoading ? 'Adding...' : 'Add Trunk'}</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowAddTrunk(false)}
+                        disabled={trunksLoading}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={trunksLoading}>
+                        {trunksLoading ? 'Adding...' : 'Add Trunk'}
+                      </Button>
                     </div>
                   </div>
                 </form>
@@ -394,16 +517,27 @@ export const SipManagementView = ({
 
               <div className="space-y-2">
                 {trunks.length === 0 ? (
-                  <p className="text-muted-foreground py-4 text-center text-sm">No outbound trunks configured</p>
+                  <p className="text-muted-foreground py-4 text-center text-sm">
+                    No outbound trunks configured
+                  </p>
                 ) : (
                   trunks.map((trunk) => (
-                    <div key={trunk.trunk_id} className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-3">
+                    <div
+                      key={trunk.trunk_id}
+                      className="border-border bg-muted/30 flex items-center justify-between rounded-lg border p-3"
+                    >
                       <div>
                         <p className="text-foreground font-semibold">{trunk.name}</p>
-                        <p className="text-muted-foreground text-xs">{trunk.address} · {trunk.numbers.join(', ')}</p>
-                        <p className="text-muted-foreground text-xs font-mono">{trunk.trunk_id}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {trunk.address} · {trunk.numbers.join(', ')}
+                        </p>
+                        <p className="text-muted-foreground font-mono text-xs">{trunk.trunk_id}</p>
                       </div>
-                      <button onClick={() => handleDeleteTrunk(trunk.trunk_id)} disabled={trunksLoading} className="rounded-lg p-2 hover:bg-red-50">
+                      <button
+                        onClick={() => handleDeleteTrunk(trunk.trunk_id)}
+                        disabled={trunksLoading}
+                        className="rounded-lg p-2 hover:bg-red-50"
+                      >
                         <Trash className="h-5 w-5 text-red-600" />
                       </button>
                     </div>
@@ -433,7 +567,9 @@ export const SipManagementView = ({
 
               {(trunks.length === 0 || agents.length === 0) && !showCallForm && (
                 <p className="text-muted-foreground text-sm">
-                  {trunks.length === 0 ? 'Add an outbound trunk first.' : 'Add an inbound agent first (its config will be used for the call).'}
+                  {trunks.length === 0
+                    ? 'Add an outbound trunk first.'
+                    : 'Add an inbound agent first (its config will be used for the call).'}
                 </p>
               )}
 
@@ -451,7 +587,10 @@ export const SipManagementView = ({
               )}
 
               {showCallForm && (
-                <form onSubmit={handleMakeCall} className="bg-muted border-border rounded-lg border p-4">
+                <form
+                  onSubmit={handleMakeCall}
+                  className="bg-muted border-border rounded-lg border p-4"
+                >
                   <div className="space-y-3">
                     <div>
                       <label className="text-foreground mb-1 block text-sm font-medium">
