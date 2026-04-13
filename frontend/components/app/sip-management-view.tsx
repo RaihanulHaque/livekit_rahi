@@ -454,47 +454,83 @@ export const SipManagementView = ({
                 <form onSubmit={handleMakeCall} className="bg-muted border-border rounded-lg border p-4">
                   <div className="space-y-3">
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">Agent (system prompt + providers)</label>
-                      <Select value={callForm.agent_id} onValueChange={(v) => setCallForm({ ...callForm, agent_id: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select agent..." /></SelectTrigger>
+                      <label className="text-foreground mb-1 block text-sm font-medium">
+                        Agent (system prompt + providers)
+                      </label>
+                      <Select
+                        value={callForm.agent_id}
+                        onValueChange={(v) => setCallForm({ ...callForm, agent_id: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select agent..." />
+                        </SelectTrigger>
                         <SelectContent>
-                          {agents.map((a) => <SelectItem key={a.agent_id} value={a.agent_id}>{a.agent_id}</SelectItem>)}
+                          {agents.map((a) => (
+                            <SelectItem key={a.agent_id} value={a.agent_id}>
+                              {a.agent_id}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">Outbound Trunk</label>
-                      <Select value={callForm.outbound_trunk_id} onValueChange={(v) => setCallForm({ ...callForm, outbound_trunk_id: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select trunk..." /></SelectTrigger>
+                      <label className="text-foreground mb-1 block text-sm font-medium">
+                        Outbound Trunk
+                      </label>
+                      <Select
+                        value={callForm.outbound_trunk_id}
+                        onValueChange={(v) => setCallForm({ ...callForm, outbound_trunk_id: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select trunk..." />
+                        </SelectTrigger>
                         <SelectContent>
-                          {trunks.map((t) => <SelectItem key={t.trunk_id} value={t.trunk_id}>{t.name} ({t.numbers[0]})</SelectItem>)}
+                          {trunks.map((t) => (
+                            <SelectItem key={t.trunk_id} value={t.trunk_id}>
+                              {t.name} ({t.numbers[0]})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">Phone Number to Dial</label>
+                      <label className="text-foreground mb-1 block text-sm font-medium">
+                        Phone Number to Dial
+                      </label>
                       <input
                         type="text"
                         placeholder="+15105550123"
                         value={callForm.phone_number}
                         onChange={(e) => setCallForm({ ...callForm, phone_number: e.target.value })}
-                        className="border-border bg-background text-foreground placeholder-muted-foreground w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                         required
                       />
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">Display Name (optional)</label>
+                      <label className="text-foreground mb-1 block text-sm font-medium">
+                        Display Name (optional)
+                      </label>
                       <input
                         type="text"
                         placeholder="Caller name shown to recipient"
                         value={callForm.display_name}
                         onChange={(e) => setCallForm({ ...callForm, display_name: e.target.value })}
-                        className="border-border bg-background text-foreground placeholder-muted-foreground w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="border-border bg-background text-foreground placeholder-muted-foreground focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                       />
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={() => setShowCallForm(false)} disabled={callLoading}>Cancel</Button>
-                      <Button type="submit" disabled={callLoading || !callForm.agent_id || !callForm.outbound_trunk_id}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowCallForm(false)}
+                        disabled={callLoading}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={callLoading || !callForm.agent_id || !callForm.outbound_trunk_id}
+                      >
                         {callLoading ? 'Dialing...' : 'Place Call'}
                       </Button>
                     </div>
