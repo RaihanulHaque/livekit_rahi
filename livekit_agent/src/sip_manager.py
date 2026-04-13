@@ -422,10 +422,8 @@ class SIPManager:
         numbers: list[str],
     ) -> dict:
         """Create a SIP outbound trunk for making calls."""
-        from livekit.protocol.sip import SIPOutboundTrunkInfo, CreateSIPOutboundTrunkRequest
-
         lkapi = await self._get_lkapi()
-        trunk_info = SIPOutboundTrunkInfo(
+        trunk_info = api.SIPOutboundTrunkInfo(
             name=name,
             address=address,
             numbers=numbers,
@@ -433,7 +431,7 @@ class SIPManager:
             auth_password=auth_password,
         )
         created = await lkapi.sip.create_sip_outbound_trunk(
-            CreateSIPOutboundTrunkRequest(trunk=trunk_info)
+            api.CreateSIPOutboundTrunkRequest(trunk=trunk_info)
         )
         trunk_id = created.sip_trunk_id
 
@@ -462,8 +460,6 @@ class SIPManager:
 
     async def delete_outbound_trunk(self, user_id: str, trunk_id: str) -> dict:
         """Delete an outbound trunk."""
-        from livekit.protocol.sip import DeleteSIPOutboundTrunkRequest
-
         key = self._outbound_trunk_key(user_id, trunk_id)
         data = self.redis_client.get(key)
         if not data:
@@ -471,7 +467,7 @@ class SIPManager:
 
         lkapi = await self._get_lkapi()
         await lkapi.sip.delete_sip_outbound_trunk(
-            DeleteSIPOutboundTrunkRequest(sip_trunk_id=trunk_id)
+            api.DeleteSIPOutboundTrunkRequest(sip_trunk_id=trunk_id)
         )
         self.redis_client.delete(key)
         logger.info(f"Deleted outbound trunk {trunk_id}")

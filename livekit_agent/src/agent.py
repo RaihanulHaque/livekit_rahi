@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import os
 from livekit import api, rtc
 from livekit.agents import (
     AgentServer,
@@ -29,8 +31,6 @@ server.setup_fnc = prewarm
 
 
 def _build_audio_input_options() -> room_io.AudioInputOptions:
-    # Import noise cancellation lazily so setup/download commands can run
-    # in environments where the optional native plugin cannot be loaded.
     try:
         from livekit.plugins import noise_cancellation
     except Exception as exc:
@@ -47,6 +47,20 @@ def _build_audio_input_options() -> room_io.AudioInputOptions:
     )
 
 
+def _get_outbound_meta(ctx: JobContext) -> dict | None:
+    """Safely extract outbound call metadata from job. Returns None if not outbound."""
+    try:
+        job_metadata = getattr(getattr(ctx, "job", None), "metadata", None)
+        if not job_metadata:
+            return None
+        meta = json.loads(job_metadata)
+        if isinstance(meta, dict) and meta.get("phone_number") and meta.get("outbound_trunk_id"):
+            return meta
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        pass
+    return None
+
+
 @server.rtc_session()
 async def my_agent(ctx: JobContext):
     ctx.log_context_fields = {
@@ -55,36 +69,27 @@ async def my_agent(ctx: JobContext):
 
     await ctx.connect()
 
-    # Check if this is an outbound call (job metadata has phone_number)
-    job_meta: dict = {}
-    if ctx.job.metadata:
-        try:
-            job_meta = json.loads(ctx.job.metadata)
-        except json.JSONDecodeError:
-            pass
+    outbound_meta = _get_outbound_meta(ctx)
 
-    phone_number: str | None = job_meta.get("phone_number")
-    outbound_trunk_id: str | None = job_meta.get("outbound_trunk_id")
-    is_outbound = bool(phone_number and outbound_trunk_id)
+    if outbound_meta:
+        # ── OUTBOUND CALL ─────────────────────────────────────────────
+        config = outbound_meta
+        system_prompt = config.get("system_prompt") or None
+        phone_number = config["phone_number"]
+        outbound_trunk_id = config["outbound_trunk_id"]
+        display_name = config.get("display_name") or phone_number
 
-    if is_outbound:
-        # Outbound: config comes from job metadata
-        config = job_meta
-    else:
-        # Inbound: config comes from room metadata (set by dispatch rule)
-        try:
-            config = json.loads(ctx.room.metadata or "{}")
-        except json.JSONDecodeError:
-            config = {}
-
-    system_prompt: str | None = config.get("system_prompt") or None
-
-    if is_outbound:
-        display_name = job_meta.get("display_name") or phone_number
         logger.info(f"Outbound call to {phone_number} via trunk {outbound_trunk_id}")
 
+        # Create a standalone LiveKit API client (works across all SDK versions)
+        lkapi = api.LiveKitAPI(
+            url=os.environ.get("LIVEKIT_URL", "ws://livekit:7880"),
+            api_key=os.environ.get("LIVEKIT_API_KEY", "devkey"),
+            api_secret=os.environ.get("LIVEKIT_API_SECRET", "secret"),
+        )
+
         try:
-            await ctx.api.sip.create_sip_participant(
+            await lkapi.sip.create_sip_participant(
                 api.CreateSIPParticipantRequest(
                     room_name=ctx.room.name,
                     sip_trunk_id=outbound_trunk_id,
@@ -97,22 +102,53 @@ async def my_agent(ctx: JobContext):
                 )
             )
             logger.info(f"Outbound call answered: {phone_number}")
-        except api.TwirpError as e:
-            logger.error(
-                f"Outbound call failed: {e.message}, "
-                f"SIP {e.metadata.get('sip_status_code')} {e.metadata.get('sip_status')}"
-            )
+        except Exception as e:
+            logger.error(f"Outbound call failed: {e}")
+            await lkapi.aclose()
+            ctx.shutdown()
+            return
+        finally:
+            await lkapi.aclose()
+
+        # Wait for SIP participant to join the room
+        participant = None
+        try:
+            participant = await ctx.wait_for_participant(identity=phone_number)
+        except AttributeError:
+            # Fallback: wait for participant via room events (older SDK)
+            logger.info("wait_for_participant not available, using room event fallback")
+            for p in ctx.room.remote_participants.values():
+                if p.identity == phone_number:
+                    participant = p
+                    break
+            if participant is None:
+                wait_event = asyncio.Event()
+                found_participant = {}
+
+                @ctx.room.on("participant_connected")
+                def _on_connect(p: rtc.RemoteParticipant):
+                    if p.identity == phone_number:
+                        found_participant["p"] = p
+                        wait_event.set()
+
+                try:
+                    await asyncio.wait_for(wait_event.wait(), timeout=30)
+                    participant = found_participant.get("p")
+                except asyncio.TimeoutError:
+                    logger.error(f"Timed out waiting for SIP participant {phone_number}")
+                    ctx.shutdown()
+                    return
+
+        if participant is None:
+            logger.error(f"SIP participant {phone_number} not found in room")
             ctx.shutdown()
             return
 
-        # Wait for SIP participant to fully join before starting session
-        participant = await ctx.wait_for_participant(identity=phone_number)
-
-        # Handle callee hanging up mid-call
+        # Handle callee hanging up
         @ctx.room.on("participant_disconnected")
         def on_disconnect(p: rtc.RemoteParticipant):
             if p.identity == phone_number:
-                logger.info(f"Callee {phone_number} disconnected, shutting down")
+                logger.info(f"Callee {phone_number} disconnected")
                 ctx.shutdown()
 
         session = build_session(vad=ctx.proc.userdata["vad"], config=config)
@@ -124,11 +160,19 @@ async def my_agent(ctx: JobContext):
                 audio_input=_build_audio_input_options(),
             ),
         )
-        # Outbound: let the callee speak first — no initial greeting
+        # Outbound: callee speaks first — no initial greeting
 
     else:
-        # Inbound: existing flow unchanged
+        # ── INBOUND CALL (unchanged) ─────────────────────────────────
+        try:
+            config = json.loads(ctx.room.metadata or "{}")
+        except json.JSONDecodeError:
+            config = {}
+
+        system_prompt: str | None = config.get("system_prompt") or None
+
         session = build_session(vad=ctx.proc.userdata["vad"], config=config)
+
         await session.start(
             agent=Assistant(instructions=system_prompt),
             room=ctx.room,
