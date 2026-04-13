@@ -25,6 +25,7 @@ Storage format in Redis:
 
 import json
 import logging
+import os
 import time
 from typing import Optional
 
@@ -32,6 +33,7 @@ import redis
 from livekit import api
 
 logger = logging.getLogger("sip_manager")
+OUTBOUND_AGENT_NAME = os.environ.get("OUTBOUND_AGENT_NAME", "telephony-outbound-agent")
 
 
 class SIPManager:
@@ -447,3 +449,97 @@ class SIPManager:
             raise ValueError(f"Agent not found: {agent_id}")
 
         return json.loads(config_str)
+
+    async def start_outbound_call(
+        self,
+        user_id: str,
+        agent_id: str,
+        phone_number: str,
+        outbound_trunk_id: Optional[str] = None,
+        display_name: Optional[str] = None,
+    ) -> dict:
+        """
+        Start an outbound SIP call for an existing agent profile.
+
+        The room metadata reuses the same shape as inbound/web so the active
+        agent runtime can build the session without a separate codepath.
+        """
+        if not phone_number:
+            raise ValueError("phone_number is required")
+
+        config = await self.get_agent(user_id=user_id, agent_id=agent_id)
+        trunk_id = outbound_trunk_id or os.environ.get("DEFAULT_OUTBOUND_TRUNK_ID")
+        if not trunk_id:
+            raise ValueError(
+                "outbound_trunk_id is required when DEFAULT_OUTBOUND_TRUNK_ID is not configured"
+            )
+
+        room_name = f"outbound-{user_id[:8]}-{agent_id}-{int(time.time())}"
+        participant_identity = f"outbound-{int(time.time() * 1000)}"
+
+        room_metadata = {
+            "agent_id": config["agent_id"],
+            "local_number": config["local_number"],
+            "sip_number": config["sip_number"],
+            "system_prompt": config["system_prompt"],
+            "stt": config["stt"],
+            "llm": config["llm"],
+            "tts": config["tts"],
+            "call_direction": "outbound",
+            "phone_number": phone_number,
+            "outbound_trunk_id": trunk_id,
+            "participant_identity": participant_identity,
+            "participant_name": config["agent_id"],
+            "display_name": display_name,
+        }
+
+        dispatch_metadata = {
+            "call_direction": "outbound",
+            "phone_number": phone_number,
+            "outbound_trunk_id": trunk_id,
+            "participant_identity": participant_identity,
+            "participant_name": config["agent_id"],
+            "display_name": display_name,
+        }
+
+        lkapi = await self._get_lkapi()
+
+        try:
+            await lkapi.room.create_room(
+                api.CreateRoomRequest(
+                    name=room_name,
+                    metadata=json.dumps(room_metadata),
+                    empty_timeout=60 * 5,
+                    departure_timeout=20,
+                )
+            )
+
+            dispatch = await lkapi.agent_dispatch.create_dispatch(
+                api.CreateAgentDispatchRequest(
+                    agent_name=OUTBOUND_AGENT_NAME,
+                    room=room_name,
+                    metadata=json.dumps(dispatch_metadata),
+                )
+            )
+
+            logger.info(
+                "Started outbound call dispatch %s for agent %s to %s",
+                dispatch.id,
+                agent_id,
+                phone_number,
+            )
+
+            return {
+                "agent_id": agent_id,
+                "room_name": room_name,
+                "dispatch_id": dispatch.id,
+                "dispatch_state": str(dispatch.state),
+                "agent_name": OUTBOUND_AGENT_NAME,
+                "phone_number": phone_number,
+                "outbound_trunk_id": trunk_id,
+                "participant_identity": participant_identity,
+                "call_direction": "outbound",
+            }
+        except Exception as e:
+            logger.error(f"Failed to start outbound call: {e}")
+            raise

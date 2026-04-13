@@ -50,6 +50,7 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+      - DEFAULT_OUTBOUND_TRUNK_ID=${DEFAULT_OUTBOUND_TRUNK_ID:-}
     depends_on:
       redis:
         condition: service_started
@@ -85,6 +86,7 @@ services:
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
+      - OUTBOUND_AGENT_NAME=${OUTBOUND_AGENT_NAME:-telephony-outbound-agent}
     depends_on:
       livekit:
         condition: service_started

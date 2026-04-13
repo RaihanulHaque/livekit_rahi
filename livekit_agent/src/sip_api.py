@@ -112,6 +112,25 @@ class AgentListItem(BaseModel):
     created_at: int
 
 
+class StartOutboundCallRequest(BaseModel):
+    agent_id: str
+    phone_number: str
+    outbound_trunk_id: Optional[str] = None
+    display_name: Optional[str] = None
+
+
+class OutboundCallResponse(BaseModel):
+    agent_id: str
+    room_name: str
+    dispatch_id: str
+    dispatch_state: str
+    agent_name: str
+    phone_number: str
+    outbound_trunk_id: str
+    participant_identity: str
+    call_direction: str
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
@@ -236,3 +255,28 @@ async def delete_agent(
     except Exception as e:
         logger.error(f"Failed to delete agent: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete agent")
+
+
+@router.post("/outbound/call", response_model=OutboundCallResponse)
+async def start_outbound_call(
+    req: StartOutboundCallRequest,
+    jwt_claims: dict = Depends(validate_jwt),
+    manager: SIPManager = Depends(get_sip_manager),
+):
+    """Start an outbound SIP call using an existing agent profile."""
+    try:
+        user_id = jwt_claims.get("user_id", "default_user")
+        result = await manager.start_outbound_call(
+            user_id=user_id,
+            agent_id=req.agent_id,
+            phone_number=req.phone_number,
+            outbound_trunk_id=req.outbound_trunk_id,
+            display_name=req.display_name,
+        )
+        return OutboundCallResponse(**result)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to start outbound call: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start outbound call")

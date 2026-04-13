@@ -7,10 +7,19 @@ You are curious, friendly, and have a sense of humor."""
 
 
 class Assistant(Agent):
-    def __init__(self, instructions: str | None = None) -> None:
+    def __init__(
+        self,
+        instructions: str | None = None,
+        *,
+        greet_first: bool = True,
+    ) -> None:
         super().__init__(instructions=instructions or DEFAULT_INSTRUCTIONS)
+        self._greet_first = greet_first
 
     async def on_enter(self) -> None:
+        if not self._greet_first:
+            return
+
         await self.session.generate_reply(
             instructions="""Greet the user and offer your assistance.""",
             allow_interruptions=True,
