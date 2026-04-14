@@ -43,7 +43,7 @@ router = APIRouter(prefix="/webhook", tags=["webhook"])
 # ── LiveKit webhook receiver ──────────────────────────────────────────────────
 _api_key = os.environ.get("LIVEKIT_API_KEY", "devkey")
 _api_secret = os.environ.get("LIVEKIT_API_SECRET", "secret")
-_receiver = WebhookReceiver(_api_key, _api_secret)
+_receiver = WebhookReceiver(_api_secret)
 
 # ── Redis client ──────────────────────────────────────────────────────────────
 _redis: redis.Redis | None = None
