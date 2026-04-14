@@ -1,5 +1,0 @@
-# Webhook config temporarily disabled for testing
-# webhook:
-#   api_key: devkey
-#   urls:
-#     - http://sip_api:8089/webhook

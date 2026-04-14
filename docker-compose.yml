@@ -7,9 +7,17 @@ services:
       - "7881:7881"
       - "7882:7882/udp"
     command: --dev --bind "0.0.0.0" --redis-host redis:6379 --node-ip 89.116.34.144
+    environment:
+      LIVEKIT_CONFIG: |
+        webhook:
+          api_key: devkey
+          urls:
+            - http://sip_api:8089/webhook
     depends_on:
       redis:
         condition: service_started
+      sip_api:
+        condition: service_healthy
     networks:
       - agent_network
 
