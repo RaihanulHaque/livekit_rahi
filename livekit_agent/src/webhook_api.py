@@ -34,7 +34,7 @@ import time
 
 import redis
 from fastapi import APIRouter, HTTPException, Request, Response
-from livekit.api import WebhookReceiver
+from livekit.api import TokenVerifier, WebhookReceiver
 
 logger = logging.getLogger("webhook_api")
 
@@ -43,7 +43,8 @@ router = APIRouter(prefix="/webhook", tags=["webhook"])
 # ── LiveKit webhook receiver ──────────────────────────────────────────────────
 _api_key = os.environ.get("LIVEKIT_API_KEY", "devkey")
 _api_secret = os.environ.get("LIVEKIT_API_SECRET", "secret")
-_receiver = WebhookReceiver(_api_secret)
+_token_verifier = TokenVerifier(_api_key, _api_secret)
+_receiver = WebhookReceiver(_token_verifier)
 
 # ── Redis client ──────────────────────────────────────────────────────────────
 _redis: redis.Redis | None = None
@@ -253,6 +254,7 @@ def _handle_participant_connection_aborted(event) -> None:
 _HANDLERS = {
     "room_started": _handle_room_started,
     "room_finished": _handle_room_finished,
+    "participant_joined": _handle_participant_joined,
     "participant_left": _handle_participant_left,
     "participant_connection_aborted": _handle_participant_connection_aborted,
 }
