@@ -15,7 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-from sip_api import router
+from sip_api import router as sip_router
+from webhook_api import router as webhook_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sip_api_server")
@@ -33,7 +34,8 @@ def main():
         allow_headers=["*"],
     )
 
-    app.include_router(router)
+    app.include_router(sip_router)
+    app.include_router(webhook_router)
 
     logger.info("Starting SIP API server on 0.0.0.0:8089...")
     uvicorn.run(
