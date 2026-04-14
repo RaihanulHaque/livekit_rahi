@@ -28,6 +28,7 @@ USER appuser
 COPY --chown=appuser:appuser src/sip_api.py /app/src/
 COPY --chown=appuser:appuser src/sip_manager.py /app/src/
 COPY --chown=appuser:appuser src/sip_api_server.py /app/src/
+COPY --chown=appuser:appuser src/webhook_api.py /app/src/
 
 WORKDIR /app/src
 
