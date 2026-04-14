@@ -6,7 +6,9 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
-    command: --dev --bind "0.0.0.0" --redis-host redis:6379 --node-ip 89.116.34.144
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml
+    command: --config /etc/livekit/livekit.yaml
     depends_on:
       redis:
         condition: service_started

@@ -1,0 +1,19 @@
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true
+  node_ip: 89.116.34.144
+
+redis:
+  address: redis:6379
+
+keys:
+  devkey: secret
+
+webhook:
+  api_key: devkey
+  urls:
+    - http://sip_api:8089/webhook

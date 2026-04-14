@@ -151,7 +151,7 @@ def _handle_room_finished(event) -> None:
     r.set(key, json.dumps(record), ex=86400 * 30)
 
     logger.info(
-        "Call ended | room=%s agent=%s local=%s duration=%ds",
+        "====== CALL ENDED ====== room=%s | agent=%s | local=%s | duration=%ds | status=completed",
         room_name, agent_id, local_number, duration_seconds,
     )
 
@@ -202,7 +202,7 @@ def _handle_participant_left(event) -> None:
     identity = participant.identity if participant else "unknown"
 
     logger.info(
-        "Participant left | room=%s agent=%s identity=%s",
+        "====== PARTICIPANT LEFT ====== room=%s | agent=%s | identity=%s",
         room.name, agent_id, identity,
     )
 
@@ -232,7 +232,7 @@ def _handle_participant_connection_aborted(event) -> None:
     identity = participant.identity if participant else "unknown"
 
     logger.warning(
-        "Connection aborted | room=%s agent=%s identity=%s",
+        "====== CALL ABORTED ====== room=%s | agent=%s | identity=%s",
         room.name, agent_id, identity,
     )
 
@@ -249,10 +249,10 @@ def _handle_participant_connection_aborted(event) -> None:
 
 
 # ── Event dispatch table ──────────────────────────────────────────────────────
+# Only handle call-disconnect events. All others are silently ignored.
 _HANDLERS = {
     "room_started": _handle_room_started,
     "room_finished": _handle_room_finished,
-    "participant_joined": _handle_participant_joined,
     "participant_left": _handle_participant_left,
     "participant_connection_aborted": _handle_participant_connection_aborted,
 }
@@ -284,14 +284,13 @@ async def receive_webhook(request: Request):
         raise HTTPException(status_code=401, detail=f"Invalid webhook signature: {e}")
 
     event_name = event.event
-    logger.info("Webhook received: %s", event_name)
 
     handler = _HANDLERS.get(event_name)
     if handler:
         try:
             handler(event)
         except Exception as e:
-            # Don't crash the endpoint — log and continue
             logger.error("Error in webhook handler for %s: %s", event_name, e)
+    # else: silently ignore non-disconnect events (track_published, egress_*, etc.)
 
     return Response(content="Webhoooooook is implemented.", media_type="text/plain")
