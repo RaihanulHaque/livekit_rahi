@@ -1,7 +1,9 @@
 import json
 import logging
+import os
 import time
 
+import redis
 from livekit import rtc
 from livekit.agents import (
     AgentServer,
@@ -30,6 +32,14 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
+def _get_redis() -> redis.Redis:
+    return redis.Redis(
+        host=os.environ.get("REDIS_HOST", "redis"),
+        port=int(os.environ.get("REDIS_PORT", 6379)),
+        decode_responses=True,
+    )
+
+
 def _build_audio_input_options() -> room_io.AudioInputOptions:
     # Import noise cancellation lazily so setup/download commands can run
     # in environments where the optional native plugin cannot be loaded.
@@ -55,7 +65,6 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # Establish full connection so that the agent can broadcast back LLM and TTS output
     await ctx.connect()
 
     try:
@@ -64,59 +73,66 @@ async def my_agent(ctx: JobContext):
         config = {}
 
     system_prompt: str | None = config.get("system_prompt") or None
+    agent_id = config.get("agent_id", "unknown")
+    room_name = ctx.room.name
 
     session = build_session(vad=ctx.proc.userdata["vad"], config=config)
 
     # ── Transcript capture ────────────────────────────────────────────────
+    # Each room runs in its own forked process — no shared state concerns.
+    # Format matches the target API: {"role": "...", "content": "...", "total_tokens": 0}
     transcript: list[dict] = []
 
     @session.on("user_input_transcribed")
     def on_user_speech(ev):
         if ev.is_final and ev.transcript.strip():
-            entry = {
+            transcript.append({
                 "role": "user",
-                "text": ev.transcript.strip(),
-                "timestamp": time.time(),
-            }
-            transcript.append(entry)
-            logger.info(
-                "📞 [USER]: %s", ev.transcript.strip()
-            )
+                "content": ev.transcript.strip(),
+                "total_tokens": 0,
+            })
 
     @session.on("conversation_item_added")
     def on_conversation_item(ev):
         item = ev.item
-        text = item.text_content if item.text_content else ""
+        # Guard against non-text items (AgentHandoff, function calls, tool results)
+        text = getattr(item, "text_content", None) or ""
         if not text.strip():
             return
-        # Only capture assistant responses here (user captured via STT above)
-        if item.role == "assistant":
-            entry = {
+        role = getattr(item, "role", None)
+        if role == "assistant":
+            transcript.append({
                 "role": "assistant",
-                "text": text.strip(),
-                "timestamp": time.time(),
-            }
-            transcript.append(entry)
-            logger.info(
-                "🤖 [AGENT]: %s", text.strip()
-            )
+                "content": text.strip(),
+                "total_tokens": 0,
+            })
 
     @session.on("close")
     def on_session_close(ev):
-        if not transcript:
-            logger.info("Session closed with no transcript.")
-            return
+        # Persist transcript to Redis under the call record key.
+        # The webhook handler (sip_api) created this key on room_started.
+        # sip_api reads it back and logs the final conversation.
+        try:
+            r = _get_redis()
+            call_key = f"call:{agent_id}:{room_name}"
+            existing = r.get(call_key)
 
-        logger.info("=" * 60)
-        logger.info("FULL CONVERSATION TRANSCRIPT")
-        logger.info("Room: %s", ctx.room.name)
-        logger.info("=" * 60)
-        for entry in transcript:
-            role_label = "USER " if entry["role"] == "user" else "AGENT"
-            logger.info("[%s]: %s", role_label, entry["text"])
-        logger.info("=" * 60)
-        logger.info("Total turns: %d", len(transcript))
-        logger.info("=" * 60)
+            if existing:
+                record = json.loads(existing)
+            else:
+                record = {
+                    "room_name": room_name,
+                    "agent_id": agent_id,
+                }
+
+            record["transcript"] = transcript
+            r.set(call_key, json.dumps(record), ex=86400 * 30)
+            logger.info(
+                "Transcript saved to Redis | room=%s | turns=%d",
+                room_name, len(transcript),
+            )
+        except Exception as e:
+            logger.error("Failed to save transcript to Redis: %s", e)
 
     # ── Start session ─────────────────────────────────────────────────────
 

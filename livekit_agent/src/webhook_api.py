@@ -111,6 +111,7 @@ def _handle_room_started(event) -> None:
 def _handle_room_finished(event) -> None:
     """
     Call ended. Compute duration, mark call as completed in Redis.
+    Then read the transcript (written by the agent process) and log it.
     """
     room = event.room
     room_name = room.name
@@ -130,12 +131,20 @@ def _handle_room_finished(event) -> None:
 
     key = _call_key(agent_id, room_name)
     r = _get_redis()
-    existing = r.get(key)
 
-    if existing:
-        record = json.loads(existing)
-    else:
-        # room_started event may have been missed — reconstruct
+    # The agent process writes the transcript to this same key on session close.
+    # room_finished may arrive slightly before or after — retry briefly.
+    record = None
+    for attempt in range(3):
+        existing = r.get(key)
+        if existing:
+            record = json.loads(existing)
+            if record.get("transcript"):
+                break
+        if attempt < 2:
+            time.sleep(2)
+
+    if not record:
         record = {
             "room_name": room_name,
             "agent_id": agent_id,
@@ -155,6 +164,17 @@ def _handle_room_finished(event) -> None:
         "====== CALL ENDED ====== room=%s | agent=%s | local=%s | duration=%ds | status=completed",
         room_name, agent_id, local_number, duration_seconds,
     )
+
+    # Log the full transcript in the target API format
+    transcript = record.get("transcript", [])
+    if transcript:
+        logger.info(
+            "====== CONVERSATION TRANSCRIPT ======\n%s",
+            json.dumps(transcript, indent=2, ensure_ascii=False),
+        )
+        logger.info("====== Total turns: %d ======", len(transcript))
+    else:
+        logger.info("No transcript available for room=%s", room_name)
 
 
 def _handle_participant_joined(event) -> None:
