@@ -132,6 +132,7 @@ def _handle_room_finished(event) -> None:
     key = _call_key(agent_id, room_name)
     r = _get_redis()
 
+
     # The agent process writes the transcript to this same key on session close.
     # room_finished may arrive slightly before or after — retry briefly.
     record = None
@@ -160,21 +161,35 @@ def _handle_room_finished(event) -> None:
     record["status"] = "completed"
     r.set(key, json.dumps(record), ex=86400 * 30)
 
+    transcript = record.get("transcript", [])
+
     logger.info(
-        "====== CALL ENDED ====== room=%s | agent=%s | local=%s | duration=%ds | status=completed",
-        room_name, agent_id, local_number, duration_seconds,
+        "====== CALL ENDED ====== room=%s | agent=%s | local=%s | duration=%ds | turns=%d | status=completed",
+        room_name, agent_id, local_number, duration_seconds, len(transcript),
     )
 
-    # Log the full transcript in the target API format
-    transcript = record.get("transcript", [])
-    if transcript:
-        logger.info(
-            "====== CONVERSATION TRANSCRIPT ======\n%s",
-            json.dumps(transcript, indent=2, ensure_ascii=False),
-        )
-        logger.info("====== Total turns: %d ======", len(transcript))
-    else:
-        logger.info("No transcript available for room=%s", room_name)
+    # Notify production backend with call record + transcript
+    callback_url = os.environ.get("CALLBACK_WEBHOOK_URL", "")
+    if callback_url:
+        try:
+            import httpx
+
+            httpx.post(
+                f"{callback_url}/api/call-completed",
+                json={
+                    "agent_id": agent_id,
+                    "room_name": room_name,
+                    "local_number": local_number,
+                    "sip_number": sip_number,
+                    "duration_seconds": duration_seconds,
+                    "status": "completed",
+                    "transcript": transcript,
+                },
+                timeout=10,
+            )
+            logger.info("Backend notified | url=%s", callback_url)
+        except Exception as e:
+            logger.error("Failed to notify backend: %s", e)
 
 
 def _handle_participant_joined(event) -> None:
