@@ -138,7 +138,7 @@ async def my_agent(ctx: JobContext):
             try:
                 import httpx
                 resp = httpx.post(
-                    f"{callback_url}/api/call-completed",
+                    f"{callback_url}/api/v1/call-completed",
                     json={
                         "agent_id": agent_id,
                         "room_name": room_name,
