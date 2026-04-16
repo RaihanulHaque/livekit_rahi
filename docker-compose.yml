@@ -12,7 +12,7 @@ services:
         webhook:
           api_key: devkey
           urls:
-            - http://sip_api:8089/webhook
+            - http://89.116.34.144:8000/api/call-completed
     depends_on:
       redis:
         condition: service_started
