@@ -110,8 +110,6 @@ async def my_agent(ctx: JobContext):
     @session.on("close")
     def on_session_close(ev):
         # Persist transcript to Redis under the call record key.
-        # The webhook handler (sip_api) created this key on room_started.
-        # sip_api reads it back and logs the final conversation.
         try:
             r = _get_redis()
             call_key = f"call:{agent_id}:{room_name}"
@@ -133,6 +131,27 @@ async def my_agent(ctx: JobContext):
             )
         except Exception as e:
             logger.error("Failed to save transcript to Redis: %s", e)
+
+        # Notify SaaS backend with transcript
+        callback_url = os.environ.get("CALLBACK_WEBHOOK_URL", "")
+        if callback_url:
+            try:
+                import httpx
+                resp = httpx.post(
+                    f"{callback_url}/api/call-completed",
+                    json={
+                        "agent_id": agent_id,
+                        "room_name": room_name,
+                        "transcript": transcript,
+                    },
+                    timeout=10,
+                )
+                logger.info(
+                    "Webhook POST → %s/api/call-completed | status=%d | turns=%d",
+                    callback_url, resp.status_code, len(transcript),
+                )
+            except Exception as e:
+                logger.error("Webhook POST failed | url=%s | error=%s", callback_url, e)
 
     # ── Start session ─────────────────────────────────────────────────────
 
