@@ -74,7 +74,10 @@ async def my_agent(ctx: JobContext):
 
     system_prompt: str | None = config.get("system_prompt") or None
     agent_id = config.get("agent_id", "unknown")
+    local_number = config.get("local_number", "")
+    sip_number = config.get("sip_number", "")
     room_name = ctx.room.name
+    started_at = int(time.time())
 
     session = build_session(vad=ctx.proc.userdata["vad"], config=config)
 
@@ -137,17 +140,22 @@ async def my_agent(ctx: JobContext):
         if callback_url:
             try:
                 import httpx
+                ended_at = int(time.time())
                 resp = httpx.post(
                     f"{callback_url}/api/v1/call-completed",
                     json={
                         "agent_id": agent_id,
                         "room_name": room_name,
+                        "local_number": local_number,
+                        "sip_number": sip_number,
+                        "duration_seconds": max(0, ended_at - started_at),
+                        "status": "completed",
                         "transcript": transcript,
                     },
                     timeout=10,
                 )
                 logger.info(
-                    "Webhook POST → %s/api/call-completed | status=%d | turns=%d",
+                    "Webhook POST → %s/api/v1/call-completed | status=%d | turns=%d",
                     callback_url, resp.status_code, len(transcript),
                 )
             except Exception as e:
