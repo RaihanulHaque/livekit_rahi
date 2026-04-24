@@ -12,6 +12,9 @@ dependencies = [
     "livekit-agents[silero,turn-detector,openai,deepgram,elevenlabs,groq]~=1.4",
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
+    "redis>=4.0",
+    "fastapi>=0.100",
+    "uvicorn>=0.23",
 ]
 
 [dependency-groups]

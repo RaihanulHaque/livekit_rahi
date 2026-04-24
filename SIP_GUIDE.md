@@ -132,7 +132,51 @@ SIP calls follow a different path because the caller is on a phone — they can'
 - SIP provider configured to route calls to your server IP (`89.116.34.144:5060`)
 - Phone number purchased from SIP provider
 
-### Step 1: Run the setup script
+### Option 1: Dynamic API Setup (Recommended for Production)
+
+Use the SIP Management API to add phone numbers without code changes:
+
+**Via Frontend UI:**
+1. Start the demo frontend (`http://localhost:3033`)
+2. Click the **settings icon** (⚙️) in the welcome view
+3. Click **"Add Number"**
+4. Fill in:
+   - Local Phone Number: `09643234042` (or your local number)
+   - System Prompt: e.g., "You are HVAC support..."
+   - STT/LLM/TTS: Choose providers
+5. Click **"Add Phone Number"**
+6. The phone is now live; calls to the SIP number will route to the agent
+
+**Via API (curl):**
+```bash
+curl -X POST http://localhost:8089/sip/trunks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "local_number": "09643234042",
+    "system_prompt": "You are a professional HVAC support agent...",
+    "stt": "deepgram",
+    "llm": "openai",
+    "tts": "elevenlabs",
+    "sip_number": "+15551234567"
+  }'
+```
+
+**List active numbers:**
+```bash
+curl -X GET http://localhost:8089/sip/trunks \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Delete a number:**
+```bash
+curl -X DELETE http://localhost:8089/sip/trunks/09643234042 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Option 2: Manual CLI Setup (Legacy, Dev-Only)
+
+For testing or one-off setup:
 
 ```bash
 docker compose exec livekit_agent python src/setup_sip.py
@@ -144,7 +188,7 @@ This creates:
 
 ### Step 2: Verify
 
-After running the script, test by calling the phone number. The logs should show the call being accepted instead of rejected with 486.
+After setup, test by calling the phone number. The logs should show the call being accepted instead of rejected with 486.
 
 ### Configuration reference
 
@@ -163,6 +207,60 @@ use_external_ip: true
 **docker-compose.yml ports for SIP:**
 - `5060:5060/udp` and `5060:5060/tcp` — SIP signaling
 - `10000-10100:10000-10100/udp` — RTP media (audio)
+
+---
+
+## Number Mapping (Local vs SIP Number)
+
+### The Problem: Local Number Regulations
+
+In countries like Bangladesh (BTRC rules), you must:
+- Accept calls on your **local number** (e.g., `09643234042`)
+- But your SIP provider gives you a **foreign SIP number** (e.g., `+15551234567`)
+
+### The Solution: Mapping Storage
+
+The system maintains a mapping in Redis:
+
+```
+Local Number (user-facing)    ↔    SIP Number (backend)
+09643234042                   ↔    +15551234567
+09643234043                   ↔    +15551234568
+```
+
+When provisioning a phone number via API, you specify both:
+
+```bash
+POST /sip/trunks
+{
+  "local_number": "09643234042",        # What users dial
+  "sip_number": "+15551234567",         # What the provider routes to
+  "system_prompt": "...",
+  "stt": "deepgram",
+  "llm": "openai",
+  "tts": "elevenlabs"
+}
+```
+
+The agent reads the **local_number** from the room metadata and knows which customer is calling.
+
+### Storage Format
+
+```
+Redis Key: sip:{user_id}:{local_number}
+Redis Value: {
+  "local_number": "09643234042",
+  "sip_number": "+15551234567",
+  "system_prompt": "...",
+  "stt": "deepgram",
+  "llm": "openai",
+  "tts": "elevenlabs",
+  "trunk_id": "ST_xxx",
+  "dispatch_rule_id": "SDR_xxx",
+  "status": "active",
+  "created_at": 1712973600
+}
+```
 
 ---
 

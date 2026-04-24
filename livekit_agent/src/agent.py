@@ -1,4 +1,9 @@
+import json
 import logging
+import os
+import time
+
+import redis
 from livekit import rtc
 from livekit.agents import (
     AgentServer,
@@ -27,6 +32,14 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
+def _get_redis() -> redis.Redis:
+    return redis.Redis(
+        host=os.environ.get("REDIS_HOST", "redis"),
+        port=int(os.environ.get("REDIS_PORT", 6379)),
+        decode_responses=True,
+    )
+
+
 def _build_audio_input_options() -> room_io.AudioInputOptions:
     # Import noise cancellation lazily so setup/download commands can run
     # in environments where the optional native plugin cannot be loaded.
@@ -52,18 +65,103 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # Establish full connection so that the agent can broadcast back LLM and TTS output
     await ctx.connect()
 
-    import json
     try:
         config = json.loads(ctx.room.metadata or "{}")
     except json.JSONDecodeError:
         config = {}
 
     system_prompt: str | None = config.get("system_prompt") or None
+    agent_id = config.get("agent_id", "unknown")
+    local_number = config.get("local_number", "")
+    sip_number = config.get("sip_number", "")
+    room_name = ctx.room.name
+    started_at = int(time.time())
 
     session = build_session(vad=ctx.proc.userdata["vad"], config=config)
+
+    # ── Transcript capture ────────────────────────────────────────────────
+    # Each room runs in its own forked process — no shared state concerns.
+    # Format matches the target API: {"role": "...", "content": "...", "total_tokens": 0}
+    transcript: list[dict] = []
+
+    @session.on("user_input_transcribed")
+    def on_user_speech(ev):
+        if ev.is_final and ev.transcript.strip():
+            transcript.append({
+                "role": "user",
+                "content": ev.transcript.strip(),
+                "total_tokens": 0,
+            })
+
+    @session.on("conversation_item_added")
+    def on_conversation_item(ev):
+        item = ev.item
+        # Guard against non-text items (AgentHandoff, function calls, tool results)
+        text = getattr(item, "text_content", None) or ""
+        if not text.strip():
+            return
+        role = getattr(item, "role", None)
+        if role == "assistant":
+            transcript.append({
+                "role": "assistant",
+                "content": text.strip(),
+                "total_tokens": 0,
+            })
+
+    @session.on("close")
+    def on_session_close(ev):
+        # Persist transcript to Redis under the call record key.
+        try:
+            r = _get_redis()
+            call_key = f"call:{agent_id}:{room_name}"
+            existing = r.get(call_key)
+
+            if existing:
+                record = json.loads(existing)
+            else:
+                record = {
+                    "room_name": room_name,
+                    "agent_id": agent_id,
+                }
+
+            record["transcript"] = transcript
+            r.set(call_key, json.dumps(record), ex=86400 * 30)
+            logger.info(
+                "Transcript saved to Redis | room=%s | turns=%d",
+                room_name, len(transcript),
+            )
+        except Exception as e:
+            logger.error("Failed to save transcript to Redis: %s", e)
+
+        # Notify SaaS backend with transcript
+        callback_url = os.environ.get("CALLBACK_WEBHOOK_URL", "")
+        if callback_url:
+            try:
+                import httpx
+                ended_at = int(time.time())
+                resp = httpx.post(
+                    f"{callback_url}/api/v1/call-completed",
+                    json={
+                        "agent_id": agent_id,
+                        "room_name": room_name,
+                        "local_number": local_number,
+                        "sip_number": sip_number,
+                        "duration_seconds": max(0, ended_at - started_at),
+                        "status": "completed",
+                        "transcript": transcript,
+                    },
+                    timeout=10,
+                )
+                logger.info(
+                    "Webhook POST → %s/api/v1/call-completed | status=%d | turns=%d",
+                    callback_url, resp.status_code, len(transcript),
+                )
+            except Exception as e:
+                logger.error("Webhook POST failed | url=%s | error=%s", callback_url, e)
+
+    # ── Start session ─────────────────────────────────────────────────────
 
     await session.start(
         agent=Assistant(instructions=system_prompt),
