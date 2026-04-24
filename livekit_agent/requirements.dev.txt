@@ -1,0 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchaudio
+livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq,langchain]~=1.4
+python-dotenv
+langchain-openai
+langchain-tavily
+redis>=4.0
+fastapi>=0.100
+uvicorn>=0.23
+httpx>=0.27

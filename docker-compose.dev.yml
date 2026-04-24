@@ -1,0 +1,59 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    command: --dev --bind "0.0.0.0"
+    networks:
+      - agent_network
+
+  livekit_agent:
+    build:
+      context: ./livekit_agent
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    volumes:
+      - ./livekit_agent/src:/app/src
+    env_file:
+      - .env
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_HOST=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - ELEVEN_API_KEY=${ELEVEN_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+    depends_on:
+      - livekit
+    networks:
+      - agent_network
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
+    restart: unless-stopped
+    ports:
+      - "3033:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+    depends_on:
+      - livekit
+      - livekit_agent
+    networks:
+      - agent_network
+
+networks:
+  agent_network:
+    driver: bridge

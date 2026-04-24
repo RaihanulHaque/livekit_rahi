@@ -37,6 +37,11 @@ def build_stt_dynamic(config: dict):
             eager_eot_threshold=float(os.getenv("DEEPGRAM_EAGER_EOT_THRESHOLD", "0.4")),
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
         )
+    elif provider == "elevenlabs":
+        return elevenlabs.STT(
+            model_id="scribe_v2_realtime",
+            api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
+        )
     elif provider == "whisper":
         return openai.STT(
             model=config.get("stt_model", "whisper-1"),

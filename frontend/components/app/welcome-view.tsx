@@ -89,6 +89,7 @@ export const WelcomeView = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="deepgram">Deepgram</SelectItem>
+              <SelectItem value="elevenlabs">ElevenLabs</SelectItem>h
               <SelectItem value="whisper">Whisper</SelectItem>
             </SelectContent>
           </Select>

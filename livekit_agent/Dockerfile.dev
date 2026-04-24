@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Lightweight dev image: CPU-only torch, no noise-cancellation, no SIP
+
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 HOME=/app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.dev.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --timeout 180 --retries 5 -r requirements.dev.txt
+
+COPY src/ /app/src/
+RUN python src/agent.py download-files
+
+COPY . .
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
