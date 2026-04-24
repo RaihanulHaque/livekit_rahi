@@ -75,13 +75,30 @@ async def my_agent(ctx: JobContext):
     system_prompt: str | None = config.get("system_prompt") or None
     agent_id = config.get("agent_id", "unknown")
 
-    # If agent_id provided but no inline system_prompt, fetch from SaaS backend
+    # If agent_id provided but no inline system_prompt, fetch from SaaS backend.
+    # Request is authenticated with a short-lived JWT signed using the LiveKit
+    # API secret — the same mechanism LiveKit uses for agent auth. The SaaS
+    # backend verifies the signature with the same key pair it already holds.
     if not system_prompt and agent_id and agent_id != "unknown":
         saas_url = os.environ.get("SAAS_BACKEND_URL", "").rstrip("/")
         if saas_url:
             try:
+                import jwt as _jwt
                 import httpx as _httpx
-                resp = _httpx.get(f"{saas_url}/api/v1/agents/{agent_id}", timeout=5)
+
+                lk_api_key = os.environ.get("LIVEKIT_API_KEY", "")
+                lk_api_secret = os.environ.get("LIVEKIT_API_SECRET", "")
+                auth_token = _jwt.encode(
+                    {"iss": lk_api_key, "exp": int(time.time()) + 30},
+                    lk_api_secret,
+                    algorithm="HS256",
+                )
+
+                resp = _httpx.get(
+                    f"{saas_url}/api/v1/agents/{agent_id}",
+                    headers={"Authorization": f"Bearer {auth_token}"},
+                    timeout=5,
+                )
                 if resp.status_code == 200:
                     system_prompt = resp.json().get("system_prompt") or None
                     logger.info("Fetched system_prompt from SaaS | agent_id=%s", agent_id)
