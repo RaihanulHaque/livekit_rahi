@@ -43,6 +43,10 @@ interface WelcomeViewProps {
   setTts: (v: string) => void;
   systemPrompt: string;
   setSystemPrompt: (v: string) => void;
+  promptMode: 'custom' | 'agent_id';
+  setPromptMode: (v: 'custom' | 'agent_id') => void;
+  agentId: string;
+  setAgentId: (v: string) => void;
 }
 
 export const WelcomeView = ({
@@ -56,13 +60,17 @@ export const WelcomeView = ({
   setTts,
   systemPrompt,
   setSystemPrompt,
+  promptMode,
+  setPromptMode,
+  agentId,
+  setAgentId,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
-  const [agentId, setAgentId] = useState('hvac');
+  const [profileId, setProfileId] = useState('hvac');
   const [loading, setLoading] = useState(false);
 
   const loadAgentPrompt = async (id: string) => {
-    setAgentId(id);
+    setProfileId(id);
     setLoading(true);
     try {
       const res = await fetch(`/api/system-prompt?agentId=${id}`);
@@ -120,33 +128,80 @@ export const WelcomeView = ({
 
         {/* Agent / system prompt section */}
         <div className="mt-6 w-full max-w-lg">
-          <div className="mb-2 flex items-center justify-between">
-            <label className="text-foreground text-sm font-medium">Agent context</label>
-            <Select value={agentId} onValueChange={loadAgentPrompt}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Load agent profile" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENT_IDS.map((a) => (
-                  <SelectItem key={a.value} value={a.value}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Mode toggle */}
+          <div className="border-border bg-muted mb-3 flex w-fit items-center gap-1 rounded-lg border p-1">
+            <button
+              onClick={() => setPromptMode('custom')}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                promptMode === 'custom'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Custom Prompt
+            </button>
+            <button
+              onClick={() => setPromptMode('agent_id')}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                promptMode === 'agent_id'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Agent ID
+            </button>
           </div>
-          <textarea
-            value={loading ? 'Loading...' : systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
-            disabled={loading}
-            placeholder="Enter a system prompt / agent context here, or select a profile above..."
-            className="border-border bg-background text-foreground placeholder:text-muted-foreground w-full resize-y rounded-md border px-3 py-2 font-mono text-xs leading-5 ring-1 focus:ring-current focus:outline-none disabled:opacity-50"
-            rows={6}
-          />
-          <p className="text-muted-foreground mt-1 text-left text-xs">
-            This context is injected into the agent at session start. You can edit it freely before
-            starting the call.
-          </p>
+
+          {promptMode === 'custom' && (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-foreground text-sm font-medium">Agent context</label>
+                <Select value={profileId} onValueChange={loadAgentPrompt}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Load agent profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENT_IDS.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <textarea
+                value={loading ? 'Loading...' : systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                disabled={loading}
+                placeholder="Enter a system prompt / agent context here, or select a profile above..."
+                className="border-border bg-background text-foreground placeholder:text-muted-foreground w-full resize-y rounded-md border px-3 py-2 font-mono text-xs leading-5 ring-1 focus:ring-current focus:outline-none disabled:opacity-50"
+                rows={6}
+              />
+              <p className="text-muted-foreground mt-1 text-left text-xs">
+                This context is injected into the agent at session start. You can edit it freely
+                before starting the call.
+              </p>
+            </>
+          )}
+
+          {promptMode === 'agent_id' && (
+            <>
+              <div className="mb-2">
+                <label className="text-foreground text-sm font-medium">Agent ID</label>
+              </div>
+              <input
+                type="text"
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                placeholder="e.g. 2008011"
+                className="border-border bg-background text-foreground placeholder:text-muted-foreground w-full rounded-md border px-3 py-2 font-mono text-sm ring-1 focus:ring-current focus:outline-none"
+              />
+              <p className="text-muted-foreground mt-1 text-left text-xs">
+                The agent fetches its system prompt from the SaaS backend at session start using
+                this ID. No prompt is embedded in the JWT.
+              </p>
+            </>
+          )}
         </div>
 
         <Button variant="primary" size="lg" onClick={onStartCall} className="mt-6 w-64 font-mono">

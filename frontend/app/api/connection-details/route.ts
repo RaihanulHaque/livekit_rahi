@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       llm: body?.llm || 'langchain',
       tts: body?.tts || 'elevenlabs',
       system_prompt: body?.system_prompt || null,
+      agent_id: body?.agent_id || null,
     });
 
     const participantToken = await createParticipantToken(

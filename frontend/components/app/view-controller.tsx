@@ -41,6 +41,10 @@ interface ViewControllerProps {
   setTts: (v: string) => void;
   systemPrompt: string;
   setSystemPrompt: (v: string) => void;
+  promptMode: 'custom' | 'agent_id';
+  setPromptMode: (v: 'custom' | 'agent_id') => void;
+  agentId: string;
+  setAgentId: (v: string) => void;
   onBeforeStart?: () => void;
 }
 
@@ -56,6 +60,10 @@ export function ViewController({
   setTts,
   systemPrompt,
   setSystemPrompt,
+  promptMode,
+  setPromptMode,
+  agentId,
+  setAgentId,
   onBeforeStart,
 }: ViewControllerProps) {
   const { isConnected, start } = useSessionContext();
@@ -135,6 +143,10 @@ export function ViewController({
             setTts={setTts}
             systemPrompt={systemPrompt}
             setSystemPrompt={setSystemPrompt}
+            promptMode={promptMode}
+            setPromptMode={setPromptMode}
+            agentId={agentId}
+            setAgentId={setAgentId}
           />
         )}
 

@@ -32,6 +32,8 @@ export function App({ appConfig }: AppProps) {
   const [llm, setLlm] = useState('langchain');
   const [tts, setTts] = useState('elevenlabs');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [promptMode, setPromptMode] = useState<'custom' | 'agent_id'>('custom');
+  const [agentId, setAgentId] = useState('');
   const [callKey, setCallKey] = useState(0);
 
   // Fetch default system prompt from demo API on mount
@@ -66,7 +68,8 @@ export function App({ appConfig }: AppProps) {
           stt,
           llm,
           tts,
-          system_prompt: systemPrompt || null,
+          system_prompt: promptMode === 'custom' ? systemPrompt || null : null,
+          agent_id: promptMode === 'agent_id' ? agentId || null : null,
           room_config: appConfig.agentName
             ? { agents: [{ agent_name: appConfig.agentName }] }
             : undefined,
@@ -79,7 +82,7 @@ export function App({ appConfig }: AppProps) {
       }
       return await res.json();
     });
-  }, [appConfig, stt, llm, tts, systemPrompt]);
+  }, [appConfig, stt, llm, tts, systemPrompt, promptMode, agentId]);
 
   const session = useSession(tokenSource);
 
@@ -97,6 +100,10 @@ export function App({ appConfig }: AppProps) {
           setTts={setTts}
           systemPrompt={systemPrompt}
           setSystemPrompt={setSystemPrompt}
+          promptMode={promptMode}
+          setPromptMode={setPromptMode}
+          agentId={agentId}
+          setAgentId={setAgentId}
         />
       </main>
       <StartAudio label="Start Audio" />

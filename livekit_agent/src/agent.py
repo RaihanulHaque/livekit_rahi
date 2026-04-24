@@ -74,6 +74,25 @@ async def my_agent(ctx: JobContext):
 
     system_prompt: str | None = config.get("system_prompt") or None
     agent_id = config.get("agent_id", "unknown")
+
+    # If agent_id provided but no inline system_prompt, fetch from SaaS backend
+    if not system_prompt and agent_id and agent_id != "unknown":
+        saas_url = os.environ.get("SAAS_BACKEND_URL", "").rstrip("/")
+        if saas_url:
+            try:
+                import httpx as _httpx
+                resp = _httpx.get(f"{saas_url}/api/v1/agents/{agent_id}", timeout=5)
+                if resp.status_code == 200:
+                    system_prompt = resp.json().get("system_prompt") or None
+                    logger.info("Fetched system_prompt from SaaS | agent_id=%s", agent_id)
+                else:
+                    logger.warning(
+                        "SaaS backend returned %d for agent_id=%s", resp.status_code, agent_id
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to fetch agent config from SaaS | agent_id=%s | error=%s", agent_id, e
+                )
     local_number = config.get("local_number", "")
     sip_number = config.get("sip_number", "")
     room_name = ctx.room.name
