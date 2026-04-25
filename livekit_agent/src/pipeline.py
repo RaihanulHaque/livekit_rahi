@@ -2,12 +2,29 @@ import os
 
 from dotenv import load_dotenv
 
+from typing import Any
+
 from livekit.agents import AgentSession, TurnHandlingOptions
+from livekit.agents import tts as lk_tts
 from livekit.plugins import deepgram, elevenlabs, openai, groq, langchain, google
 from livekit.plugins.google import beta as google_beta
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from langgraph_agent import graph_app
 import uuid
+
+
+class ElevenLabsHTTPTTS(elevenlabs.TTS):
+    """eleven_v3 doesn't support WebSocket /multi-stream-input (403).
+    This subclass forces HTTP ChunkedStream path (streaming=False).
+    TTFB ~0.7s vs ~0.2s for WebSocket models — acceptable trade-off.
+    See: https://github.com/livekit/agents/issues/4901
+    """
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._capabilities = lk_tts.TTSCapabilities(
+            streaming=False,
+            aligned_transcript=False,
+        )
 
 # Load local overrides for direct local runs (uv run src/agent.py dev).
 load_dotenv()
@@ -42,6 +59,7 @@ def build_stt_dynamic(config: dict):
     elif provider == "elevenlabs":
         return elevenlabs.STT(
             model_id="scribe_v2_realtime",
+            language_code="bn",
             api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
         )
     elif provider == "whisper":
@@ -83,12 +101,16 @@ def build_tts_dynamic(config: dict):
     keys = config.get("api_keys", {})
 
     if provider == "elevenlabs":
-        return elevenlabs.TTS(
-            voice_id=config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "iP95p4xoKVk53GoZ742B")),
-            # model=config.get("tts_model", os.getenv("TTS_MODEL", "eleven_flash_v2_5")),
-            model =config.get("tts_model", os.getenv("TTS_MODEL", "eleven_v3")), # eleven_v3 supports bengali but facing errors, switching back to eleven_flash_v2_5 for now
-            api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
-        )
+        # model = config.get("tts_model", os.getenv("TTS_MODEL", "eleven_flash_v2_5"))
+        model = config.get("tts_model", os.getenv("TTS_MODEL", "eleven_v3"))
+        voice_id = config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "iP95p4xoKVk53GoZ742B"))
+        api_key = keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"))
+        cls = ElevenLabsHTTPTTS if model == "eleven_v3" else elevenlabs.TTS
+        language = config.get("tts_language", os.getenv("TTS_LANGUAGE", "bn" if model == "eleven_v3" else None))
+        kwargs = dict(voice_id=voice_id, model=model, api_key=api_key)
+        if language:
+            kwargs["language"] = language
+        return cls(**kwargs)
     elif provider == "google":
         return google_beta.GeminiTTS(
             model="gemini-3.1-flash-tts-preview",
