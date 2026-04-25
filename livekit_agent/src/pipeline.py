@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 from livekit.agents import AgentSession, TurnHandlingOptions
 from livekit.plugins import deepgram, elevenlabs, openai, groq, langchain, google
+from livekit.plugins.google import beta as google_beta
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from langgraph_agent import graph_app
 import uuid
@@ -33,7 +34,8 @@ def build_stt_dynamic(config: dict):
 
     if provider == "deepgram":
         return deepgram.STTv2(
-            model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "flux-general-en")),
+            model=config.get("stt_model", os.getenv("DEEPGRAM_MODE÷L", "flux-general-en")),
+            # model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "nova-3")), # This multiligual model isn't working well, switching back to flux-general-en for now
             eager_eot_threshold=float(os.getenv("DEEPGRAM_EAGER_EOT_THRESHOLD", "0.4")),
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
         )
@@ -83,8 +85,15 @@ def build_tts_dynamic(config: dict):
     if provider == "elevenlabs":
         return elevenlabs.TTS(
             voice_id=config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "iP95p4xoKVk53GoZ742B")),
-            model=config.get("tts_model", os.getenv("TTS_MODEL", "eleven_flash_v2_5")),
+            # model=config.get("tts_model", os.getenv("TTS_MODEL", "eleven_flash_v2_5")),
+            model =config.get("tts_model", os.getenv("TTS_MODEL", "eleven_v3")), # eleven_v3 supports bengali but facing errors, switching back to eleven_flash_v2_5 for now
             api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
+        )
+    elif provider == "google":
+        return google_beta.GeminiTTS(
+            model="gemini-3.1-flash-tts-preview",
+            voice_name=config.get("tts_voice_name", "Zephyr"),
+            api_key=keys.get("google", os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")),
         )
     elif provider == "kokoro":
         # Uses local kokoro container overrides

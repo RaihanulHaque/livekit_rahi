@@ -1,7 +1,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchaudio
-livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq,langchain]~=1.4
+livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq,langchain]~=1.5
 python-dotenv
 langchain-openai
 langchain-tavily

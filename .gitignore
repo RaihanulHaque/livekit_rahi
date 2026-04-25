@@ -8,3 +8,5 @@ demo/
 .claude
 .env
 livekit_sip_docs/
+livekit agents main livekit-plugins-livekit-plugins-google/
+livekit agents main livekit-plugins-livekit-plugins-elevenlabs
