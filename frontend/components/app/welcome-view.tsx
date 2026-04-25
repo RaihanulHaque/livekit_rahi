@@ -120,6 +120,7 @@ export const WelcomeView = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+              <SelectItem value="google">Gemini TTS</SelectItem>
               <SelectItem value="kokoro">Kokoro</SelectItem>
               <SelectItem value="openai">OpenAI</SelectItem>
             </SelectContent>
