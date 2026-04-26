@@ -1,6 +1,6 @@
 torch
 torchaudio
-livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq,langchain]~=1.4
+livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq,langchain]~=1.5
 livekit-plugins-noise-cancellation~=0.2
 python-dotenv
 langchain-openai
