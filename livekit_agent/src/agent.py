@@ -95,7 +95,7 @@ async def my_agent(ctx: JobContext):
                 )
 
                 resp = _httpx.get(
-                    f"{saas_url}/api/v1/agents/{agent_id}",
+                    f"https://app.unisense.ai/api/v1/agents/{agent_id}",
                     headers={"Authorization": f"Bearer {auth_token}"},
                     timeout=5,
                 )
