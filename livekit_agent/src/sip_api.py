@@ -77,7 +77,7 @@ class RegisterAgentRequest(BaseModel):
     agent_id: str
     local_number: str
     sip_number: str  # REQUIRED: user must provide their SIP number
-    system_prompt: str
+    system_prompt: Optional[str] = None  # omit to fetch from SaaS backend via agent_id
     stt: str
     llm: str
     tts: str
@@ -96,7 +96,7 @@ class AgentResponse(BaseModel):
     sip_number: str
     trunk_id: str
     dispatch_rule_id: str
-    system_prompt: str
+    system_prompt: Optional[str] = None
     stt: str
     llm: str
     tts: str
@@ -130,7 +130,7 @@ async def register_agent(
             agent_id=req.agent_id,
             local_number=req.local_number,
             sip_number=req.sip_number,
-            system_prompt=req.system_prompt,
+            system_prompt=req.system_prompt,  # None → agent fetches from SaaS via agent_id
             stt=req.stt,
             llm=req.llm,
             tts=req.tts,

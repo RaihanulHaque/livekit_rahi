@@ -87,10 +87,10 @@ class SIPManager:
         agent_id: str,
         local_number: str,
         sip_number: str,
-        system_prompt: str,
         stt: str,
         llm: str,
         tts: str,
+        system_prompt: Optional[str] = None,
     ) -> dict:
         """
         Register or update an agent with a dedicated phone number.
