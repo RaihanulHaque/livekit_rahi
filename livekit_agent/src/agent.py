@@ -45,22 +45,12 @@ def _get_redis() -> redis.Redis:
 
 
 def _build_audio_input_options() -> room_io.AudioInputOptions:
-    # Import noise cancellation lazily so setup/download commands can run
-    # in environments where the optional native plugin cannot be loaded.
-    try:
-        from livekit.plugins import noise_cancellation
-    except Exception as exc:
-        logger.warning(
-            "Noise cancellation plugin unavailable, continuing without it: %s",
-            exc,
-        )
-        return room_io.AudioInputOptions()
-
-    return room_io.AudioInputOptions(
-        noise_cancellation=lambda params: noise_cancellation.BVCTelephony()
-        if params.participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-        else noise_cancellation.BVC(),
-    )
+    """
+    Build audio input options for the agent.
+    Noise cancellation is disabled for SIP endpoints as it causes audio
+    degradation and prevents STT models from receiving proper audio context.
+    """
+    return room_io.AudioInputOptions()
 
 
 @server.rtc_session()

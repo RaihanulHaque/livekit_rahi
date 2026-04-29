@@ -51,7 +51,7 @@ def build_stt_dynamic(config: dict):
 
     if provider == "deepgram":
         return deepgram.STTv2(
-            model=config.get("stt_model", os.getenv("DEEPGRAM_MODE÷L", "flux-general-en")),
+            model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "flux-general-en")),
             # model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "nova-3")), # This multiligual model isn't working well, switching back to flux-general-en for now
             eager_eot_threshold=float(os.getenv("DEEPGRAM_EAGER_EOT_THRESHOLD", "0.4")),
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
