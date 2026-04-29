@@ -104,7 +104,7 @@ def build_tts_dynamic(config: dict):
         # model = config.get("tts_model", os.getenv("TTS_MODEL", "eleven_flash_v2_5"))
         model = config.get("tts_model", os.getenv("TTS_MODEL", "eleven_v3"))
         # voice_id = config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "iP95p4xoKVk53GoZ742B"))
-        voice_id = config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "WiaIVvI1gDL4vT4y7qUU"))
+        voice_id = config.get("tts_voice_id", os.getenv("TTS_VOICE_ID", "Gvx1qZk9R4BUiBfsNPBU"))
         api_key = keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"))
         cls = ElevenLabsHTTPTTS if model == "eleven_v3" else elevenlabs.TTS
         language = config.get("tts_language", os.getenv("TTS_LANGUAGE", "bn" if model == "eleven_v3" else None))
