@@ -50,8 +50,10 @@ def build_stt_dynamic(config: dict):
     keys = config.get("api_keys", {})
 
     if provider == "deepgram":
+        # Default to nova-2-phonecall for SIP calls (8kHz audio), otherwise flux-general-en
+        default_model = "nova-2-phonecall" if config.get("sip_number") else "flux-general-en"
         return deepgram.STTv2(
-            model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "flux-general-en")),
+            model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", default_model)),
             # model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "nova-3")), # This multiligual model isn't working well, switching back to flux-general-en for now
             eager_eot_threshold=float(os.getenv("DEEPGRAM_EAGER_EOT_THRESHOLD", "0.4")),
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
