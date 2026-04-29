@@ -59,9 +59,12 @@ def build_stt_dynamic(config: dict):
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
         )
     elif provider == "elevenlabs":
+        # Standardize on 8000Hz for SIP phone calls, default to 16000Hz for WebRTC
+        sample_rate = 8000 if config.get("sip_number") else 16000
         return elevenlabs.STT(
             model_id="scribe_v2_realtime",
             language_code="bn",
+            sample_rate=sample_rate,
             api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
         )
     elif provider == "whisper":
