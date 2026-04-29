@@ -18,7 +18,10 @@ from livekit.plugins import (
 
 from assistant import Assistant
 from pipeline import build_session
-
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 logger = logging.getLogger("agent")
 
 
@@ -79,7 +82,7 @@ async def my_agent(ctx: JobContext):
     # Request is authenticated with a short-lived JWT signed using the LiveKit
     # API secret — the same mechanism LiveKit uses for agent auth. The SaaS
     # backend verifies the signature with the same key pair it already holds.
-    if not system_prompt and agent_id and agent_id != "unknown":
+    if agent_id and agent_id != "unknown": # and not system_prompt:
         saas_url = os.environ.get("SAAS_BACKEND_URL", "").rstrip("/")
         if saas_url:
             try:
@@ -93,9 +96,10 @@ async def my_agent(ctx: JobContext):
                     lk_api_secret,
                     algorithm="HS256",
                 )
-
+                url = f"{saas_url}/api/v1/agents/{agent_id}"
+                logger.info("Fetching system_prompt from SaaS | agent_id=%s | url=%s", agent_id, url)
                 resp = _httpx.get(
-                    f"https://app.unisense.ai/api/v1/agents/{agent_id}",
+                    url,
                     headers={"Authorization": f"Bearer {auth_token}"},
                     timeout=5,
                 )
