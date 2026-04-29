@@ -96,7 +96,7 @@ async def my_agent(ctx: JobContext):
                     lk_api_secret,
                     algorithm="HS256",
                 )
-                url = f"{saas_url}/api/v1/agents/{agent_id}"
+                url = f"{saas_url}/api/v1/livekit/agents/{agent_id}"
                 logger.info("Fetching system_prompt from SaaS | agent_id=%s | url=%s", agent_id, url)
                 resp = _httpx.get(
                     url,
