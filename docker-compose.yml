@@ -80,6 +80,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./livekit_agent/src:/app/src
+      - livekit_agent_cache:/app/.cache
     env_file:
       - .env
     environment:
@@ -97,6 +98,9 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - CALLBACK_WEBHOOK_URL=${CALLBACK_WEBHOOK_URL:-}
+      - SAAS_BACKEND_URL=${SAAS_BACKEND_URL}
+      - XDG_CACHE_HOME=/app/.cache
+      - TORCH_HOME=/app/.cache/torch
     depends_on:
       livekit:
         condition: service_started
@@ -149,3 +153,6 @@ services:
 networks:
   agent_network:
     driver: bridge
+
+volumes:
+  livekit_agent_cache:

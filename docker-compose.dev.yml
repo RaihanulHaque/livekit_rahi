@@ -16,6 +16,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./livekit_agent/src:/app/src
+      - livekit_agent_cache:/app/.cache
     env_file:
       - .env
     environment:
@@ -31,6 +32,8 @@ services:
       - ELEVEN_API_KEY=${ELEVEN_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - SAAS_BACKEND_URL=${SAAS_BACKEND_URL:-http://host.docker.internal:8083}
+      - XDG_CACHE_HOME=/app/.cache
+      - TORCH_HOME=/app/.cache/torch
     depends_on:
       - livekit
     networks:
@@ -59,3 +62,6 @@ services:
 networks:
   agent_network:
     driver: bridge
+
+volumes:
+  livekit_agent_cache:
