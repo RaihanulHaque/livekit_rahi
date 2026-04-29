@@ -79,7 +79,7 @@ async def my_agent(ctx: JobContext):
     # Request is authenticated with a short-lived JWT signed using the LiveKit
     # API secret — the same mechanism LiveKit uses for agent auth. The SaaS
     # backend verifies the signature with the same key pair it already holds.
-    if not system_prompt and agent_id and agent_id != "unknown":
+    if agent_id and agent_id != "unknown": # and not system_prompt:
         saas_url = os.environ.get("SAAS_BACKEND_URL", "").rstrip("/")
         if saas_url:
             try:
