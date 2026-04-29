@@ -82,6 +82,8 @@ async def my_agent(ctx: JobContext):
     # Request is authenticated with a short-lived JWT signed using the LiveKit
     # API secret — the same mechanism LiveKit uses for agent auth. The SaaS
     # backend verifies the signature with the same key pair it already holds.
+    print(f"Agent config | agent_id={agent_id} | system_prompt={'present' if system_prompt else 'absent'}\n\n\n\n\n\n\n\n")
+    logger.info("Agent config | agent_id=%s | system_prompt=%s\n\n\n\n", agent_id, "present" if system_prompt else "absent")
     if agent_id and agent_id != "unknown": # and not system_prompt:
         saas_url = os.environ.get("SAAS_BACKEND_URL", "").rstrip("/")
         if saas_url:
@@ -114,6 +116,9 @@ async def my_agent(ctx: JobContext):
                 logger.warning(
                     "Failed to fetch agent config from SaaS | agent_id=%s | error=%s", agent_id, e
                 )
+    else:
+        print("No agent_id provided in room metadata; using defaults\n\n\n")
+        logger.warning("No agent_id provided in room metadata; using defaults\n\n\n")
     local_number = config.get("local_number", "")
     sip_number = config.get("sip_number", "")
     room_name = ctx.room.name
