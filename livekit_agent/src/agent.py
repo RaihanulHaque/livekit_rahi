@@ -18,6 +18,7 @@ from livekit.plugins import (
 
 from assistant import Assistant
 from pipeline import build_session
+
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -98,16 +99,22 @@ async def my_agent(ctx: JobContext):
                     lk_api_secret,
                     algorithm="HS256",
                 )
-                url = f"{saas_url}/api/v1/livekit/agents/{agent_id}"
+
+                url = f"{saas_url}/api/v1/agents/{agent_id}"
                 logger.info("Fetching system_prompt from SaaS | agent_id=%s | url=%s", agent_id, url)
                 resp = _httpx.get(
+                    # f"https://app.unisense.ai/api/v1/agents/{agent_id}",
                     url,
                     headers={"Authorization": f"Bearer {auth_token}"},
                     timeout=5,
                 )
                 if resp.status_code == 200:
                     system_prompt = resp.json().get("system_prompt") or None
-                    logger.info("Fetched system_prompt from SaaS | agent_id=%s", agent_id)
+                    logger.info(
+                        "Fetched system_prompt from SaaS | agent_id=%s | length=%s",
+                        agent_id,
+                        len(system_prompt or ""),
+                    )
                 else:
                     logger.warning(
                         "SaaS backend returned %d for agent_id=%s", resp.status_code, agent_id
