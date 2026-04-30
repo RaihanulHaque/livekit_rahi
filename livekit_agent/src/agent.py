@@ -192,9 +192,9 @@ async def my_agent(ctx: JobContext):
     if config.get("llm") == "gemini-live":
         logger.info("Using Gemini Multimodal Live agent")
         model = google.beta.realtime.RealtimeModel(
-            model=config.get("llm_model", "models/gemini-2.0-flash-exp"),
+            model=config.get("llm_model", "models/gemini-3.1-flash-live-preview"),
             instructions=system_prompt,
-            voice=config.get("tts_voice", "Puck"),
+            voice=config.get("tts_voice_name", "Puck"),
         )
         agent = MultimodalAgent(model=model)
         agent.start(ctx.room)
