@@ -6,10 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "livekit-agent"
 version = "1.0.0"
 description = "Simple voice AI assistant built with LiveKit Agents for Python"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 dependencies = [
-    "livekit-agents[silero,turn-detector,openai,deepgram,elevenlabs,groq]~=1.5",
+    "livekit-agents[silero,turn-detector,openai,google,deepgram,elevenlabs,groq]~=1.5",
+    "livekit-plugins-google",
     "livekit-plugins-noise-cancellation~=0.2",
     "python-dotenv",
     "redis>=4.0",
