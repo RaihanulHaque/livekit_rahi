@@ -50,16 +50,21 @@ def build_stt_dynamic(config: dict):
     keys = config.get("api_keys", {})
 
     if provider == "deepgram":
+        # Default to nova-2-phonecall for SIP calls (8kHz audio), otherwise flux-general-en
+        default_model = "nova-2-phonecall" if config.get("sip_number") else "flux-general-en"
         return deepgram.STTv2(
-            model=config.get("stt_model", os.getenv("DEEPGRAM_MODE÷L", "flux-general-en")),
+            model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", default_model)),
             # model=config.get("stt_model", os.getenv("DEEPGRAM_MODEL", "nova-3")), # This multiligual model isn't working well, switching back to flux-general-en for now
             eager_eot_threshold=float(os.getenv("DEEPGRAM_EAGER_EOT_THRESHOLD", "0.4")),
             api_key=keys.get("deepgram", os.getenv("DEEPGRAM_API_KEY")),
         )
     elif provider == "elevenlabs":
+        # Standardize on 8000Hz for SIP phone calls, default to 16000Hz for WebRTC
+        sample_rate = 8000 if config.get("sip_number") else 16000
         return elevenlabs.STT(
             model_id="scribe_v2_realtime",
             language_code="bn",
+            sample_rate=sample_rate,
             api_key=keys.get("elevenlabs", os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY")),
         )
     elif provider == "whisper":
