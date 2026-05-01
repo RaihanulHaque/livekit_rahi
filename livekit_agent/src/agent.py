@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -12,8 +13,10 @@ from livekit.agents import (
     cli,
     room_io,
 )
+from livekit.agents.multimodal import MultimodalAgent
 from livekit.plugins import (
     silero,
+    google,
 )
 
 from assistant import Assistant
@@ -130,13 +133,98 @@ async def my_agent(ctx: JobContext):
     sip_number = config.get("sip_number", "")
     room_name = ctx.room.name
     started_at = int(time.time())
+    transcript: list[dict] = []
+
+    async def _save_transcript():
+        # Persist transcript to Redis under the call record key.
+        try:
+            r = _get_redis()
+            call_key = f"call:{agent_id}:{room_name}"
+            existing = r.get(call_key)
+
+            if existing:
+                record = json.loads(existing)
+            else:
+                record = {
+                    "room_name": room_name,
+                    "agent_id": agent_id,
+                }
+
+            record["transcript"] = transcript
+            r.set(call_key, json.dumps(record), ex=86400 * 30)
+            logger.info(
+                "Transcript saved to Redis | room=%s | turns=%d",
+                room_name,
+                len(transcript),
+            )
+        except Exception as e:
+            logger.error("Failed to save transcript to Redis: %s", e)
+
+        # Notify SaaS backend with transcript
+        callback_url = os.environ.get("CALLBACK_WEBHOOK_URL", "")
+        if callback_url:
+            try:
+                import httpx
+
+                ended_at = int(time.time())
+                resp = httpx.post(
+                    f"{callback_url}/api/v1/call-completed",
+                    json={
+                        "agent_id": agent_id,
+                        "room_name": room_name,
+                        "local_number": local_number,
+                        "sip_number": sip_number,
+                        "duration_seconds": max(0, ended_at - started_at),
+                        "status": "completed",
+                        "transcript": transcript,
+                    },
+                    timeout=10,
+                )
+                logger.info(
+                    "Webhook POST → %s/api/v1/call-completed | status=%d | turns=%d",
+                    callback_url,
+                    resp.status_code,
+                    len(transcript),
+                )
+            except Exception as e:
+                logger.error("Webhook POST failed | url=%s | error=%s", callback_url, e)
+
+    if config.get("llm") == "gemini-live":
+        logger.info("Using Gemini Multimodal Live agent")
+        model = google.beta.realtime.RealtimeModel(
+            model=config.get("llm_model", "models/gemini-3.1-flash-live-preview"),
+            instructions=system_prompt,
+            voice=config.get("tts_voice_name", "Puck"),
+        )
+        agent = MultimodalAgent(model=model)
+        agent.start(ctx.room)
+
+        @agent.on("user_speech_committed")
+        def _on_user_speech(msg: rtc.ChatMessage):
+            if msg.content:
+                transcript.append(
+                    {"role": "user", "content": msg.content, "total_tokens": 0}
+                )
+
+        @agent.on("agent_speech_committed")
+        def _on_agent_speech(msg: rtc.ChatMessage):
+            if msg.content:
+                transcript.append(
+                    {"role": "assistant", "content": msg.content, "total_tokens": 0}
+                )
+
+        # Wait for the room to disconnect
+        while ctx.room.connection_state == rtc.ConnectionState.CONN_CONNECTED:
+            await asyncio.sleep(1)
+
+        await _save_transcript()
+        return
 
     session = build_session(vad=ctx.proc.userdata["vad"], config=config)
 
     # ── Transcript capture ────────────────────────────────────────────────
     # Each room runs in its own forked process — no shared state concerns.
     # Format matches the target API: {"role": "...", "content": "...", "total_tokens": 0}
-    transcript: list[dict] = []
 
     @session.on("user_input_transcribed")
     def on_user_speech(ev):
@@ -164,54 +252,7 @@ async def my_agent(ctx: JobContext):
 
     @session.on("close")
     def on_session_close(ev):
-        # Persist transcript to Redis under the call record key.
-        try:
-            r = _get_redis()
-            call_key = f"call:{agent_id}:{room_name}"
-            existing = r.get(call_key)
-
-            if existing:
-                record = json.loads(existing)
-            else:
-                record = {
-                    "room_name": room_name,
-                    "agent_id": agent_id,
-                }
-
-            record["transcript"] = transcript
-            r.set(call_key, json.dumps(record), ex=86400 * 30)
-            logger.info(
-                "Transcript saved to Redis | room=%s | turns=%d",
-                room_name, len(transcript),
-            )
-        except Exception as e:
-            logger.error("Failed to save transcript to Redis: %s", e)
-
-        # Notify SaaS backend with transcript
-        callback_url = os.environ.get("CALLBACK_WEBHOOK_URL", "")
-        if callback_url:
-            try:
-                import httpx
-                ended_at = int(time.time())
-                resp = httpx.post(
-                    f"{callback_url}/api/v1/call-completed",
-                    json={
-                        "agent_id": agent_id,
-                        "room_name": room_name,
-                        "local_number": local_number,
-                        "sip_number": sip_number,
-                        "duration_seconds": max(0, ended_at - started_at),
-                        "status": "completed",
-                        "transcript": transcript,
-                    },
-                    timeout=10,
-                )
-                logger.info(
-                    "Webhook POST → %s/api/v1/call-completed | status=%d | turns=%d",
-                    callback_url, resp.status_code, len(transcript),
-                )
-            except Exception as e:
-                logger.error("Webhook POST failed | url=%s | error=%s", callback_url, e)
+        asyncio.create_task(_save_transcript())
 
     # ── Start session ─────────────────────────────────────────────────────
 

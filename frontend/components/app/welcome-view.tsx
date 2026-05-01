@@ -97,7 +97,7 @@ export const WelcomeView = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="deepgram">Deepgram</SelectItem>
-              <SelectItem value="elevenlabs">ElevenLabs</SelectItem>h
+              <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
               <SelectItem value="whisper">Whisper</SelectItem>
             </SelectContent>
           </Select>
@@ -111,6 +111,7 @@ export const WelcomeView = ({
               <SelectItem value="openai">OpenAI</SelectItem>
               <SelectItem value="groq">Groq</SelectItem>
               <SelectItem value="google">Gemini</SelectItem>
+              <SelectItem value="gemini-live">Gemini Live</SelectItem>
             </SelectContent>
           </Select>
 
